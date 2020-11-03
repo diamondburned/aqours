@@ -11,7 +11,7 @@ import (
 )
 
 type ParentController interface {
-	PlayTrack(track *playlist.Track)
+	PlayTrack(*TrackList, int)
 }
 
 type ListStorer interface {
@@ -48,10 +48,7 @@ func NewContainer(parent ParentController) *Container {
 	c.TreeView = *tree
 
 	tree.Connect("row-activated", func(tv *gtk.TextView, path *gtk.TreePath) {
-		n := path.GetIndices()[0]
-		p := c.Current.Paths[n]
-		t := c.Current.Tracks[p]
-		parent.PlayTrack(t.Track)
+		parent.PlayTrack(c.Current, path.GetIndices()[0])
 	})
 
 	return c

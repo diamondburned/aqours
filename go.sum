@@ -1,5 +1,5 @@
-github.com/YouROK/go-mpv v0.0.0-20160721123233-ecdfd901e332 h1:nrVDN4BzWLtR0O8AzCLw0Fxxhf51Ez6xI69KH5nccNE=
-github.com/YouROK/go-mpv v0.0.0-20160721123233-ecdfd901e332/go.mod h1:QS4kWL5x2B4XoUw0YwlLx5lfUq3r4JcdrE8QOH6uubk=
+github.com/DexterLB/mpvipc v0.0.0-20190216161438-2a226fa01bbd h1:arFa08TQtfw5NquODWwaQpgcXeC2HC0bNIstVMmsdNk=
+github.com/DexterLB/mpvipc v0.0.0-20190216161438-2a226fa01bbd/go.mod h1:nMVB54ifXmC1hpgfq7gTpotbv891pd2wAX/whuUj1q4=
 github.com/dave/jennifer v1.4.0/go.mod h1:fIb+770HOpJ2fmN9EPPKOqm1vMGhB+TwXKMZhrIygKg=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -16,3 +16,5 @@ github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/ushis/m3u v0.0.0-20150127162843-94396b784733 h1:m4zGEkIeft/gfUs469WS/gB6NT3RtkG8zQrOvCOzovE=
 github.com/ushis/m3u v0.0.0-20150127162843-94396b784733/go.mod h1:/w56gU05vgM74JSy2/xFy6tUQ9vJBMiciHNvyIEU1UY=
+gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce h1:+JknDZhAj8YMt7GC73Ei8pv4MzjDUNPHgQWJdtMAaDU=
+gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce/go.mod h1:5AcXVHNjg+BDxry382+8OKon8SEWiKktQR07RKPsv1c=

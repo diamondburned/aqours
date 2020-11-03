@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/YouROK/go-mpv/mpv"
+	"github.com/DexterLB/mpvipc"
 	"github.com/diamondburned/aqours/internal/muse"
 	"github.com/diamondburned/aqours/internal/muse/playlist"
 	"github.com/diamondburned/aqours/internal/ui/content"
+	"github.com/diamondburned/aqours/internal/ui/content/body/tracks"
 	"github.com/diamondburned/aqours/internal/ui/css"
 	"github.com/diamondburned/aqours/internal/ui/header"
 	"github.com/gotk3/gotk3/glib"
@@ -56,17 +57,27 @@ func NewMainWindow(a *gtk.Application, session *muse.Session) (*MainWindow, erro
 
 	w.Add(mw.Content)
 
-	session.Handler = mw
+	session.SetHandler(mw)
 
 	return mw, nil
 }
 
-func (w *MainWindow) OnMPVEvent(event *mpv.Event) {
+func (w *MainWindow) OnMPVEvent(event *mpvipc.Event) {
 	// spew.Dump(event)
 }
 
 func (w *MainWindow) OnPathUpdate(path string) {
-	log.Println("new path:", path)
+	track := w.state.TrackList.Tracks[path]
+	w.Content.Bar.NowPlaying.SetTrack(track.Track)
+	w.Content.Body.Sidebar.AlbumArt.SetTrack(track.Track)
+}
+
+func (w *MainWindow) OnPauseUpdate(pause bool) {
+	w.Content.Bar.Controls.Play.SetPlaying(!pause)
+}
+
+func (w *MainWindow) OnBitrateChange(bitrate int) {
+	log.Println("Bitrate:", bitrate)
 }
 
 func (w *MainWindow) AddPlaylist(path string) {
@@ -103,6 +114,8 @@ func (w *MainWindow) HasPlaylist(name string) bool {
 	return has
 }
 
+// RenamePlaylist renames a playlist. It only works if we're renaming the
+// current playlist.
 func (w *MainWindow) RenamePlaylist(name, newName string) bool {
 	pl, ok := w.state.Playlists[name]
 	if !ok {
@@ -139,8 +152,6 @@ func (w *MainWindow) SetPlay(playing bool) {
 		log.Println("SetPlay failed:", err)
 		return
 	}
-
-	w.Content.Bar.Controls.Play.SetPlaying(playing)
 }
 
 func (w *MainWindow) Previous() {
@@ -150,20 +161,16 @@ func (w *MainWindow) Previous() {
 	}
 }
 
-func (w *MainWindow) PlayTrack(track *playlist.Track) {
+func (w *MainWindow) PlayTrack(list *tracks.TrackList, n int) {
 	if err := w.muse.SelectPlaylist(w.state.Playlist.Path); err != nil {
 		log.Println("SelectPlaylist failed:", err)
 		return
 	}
 
-	if err := w.muse.PlayTrack(track.Filepath); err != nil {
-		log.Println("PlayTrack failed:", err)
+	if err := w.muse.PlayTrackIndex(n); err != nil {
+		log.Println("PlayTrackIndex failed:", err)
 		return
 	}
-
-	w.Content.Bar.Controls.Play.SetPlaying(true)
-	w.Content.Bar.NowPlaying.SetTrack(track)
-	w.Content.Body.Sidebar.AlbumArt.SetTrack(track)
 }
 
 func (w *MainWindow) SelectPlaylist(name string) {
@@ -173,8 +180,8 @@ func (w *MainWindow) SelectPlaylist(name string) {
 		return
 	}
 
-	list := w.Content.Body.TracksView.SelectPlaylist(name)
-	list.SetTracks(pl.Tracks)
+	w.state.TrackList = w.Content.Body.TracksView.SelectPlaylist(name)
+	w.state.TrackList.SetTracks(pl.Tracks)
 
 	w.Header.SetPlaylist(name)
 	w.SetTitle(fmt.Sprintf("%s - Aqours", name))

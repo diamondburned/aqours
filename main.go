@@ -16,8 +16,6 @@ func main() {
 	if err != nil {
 		log.Fatalln("Failed to create mpv session:", err)
 	}
-	defer s.Shutdown()
-	defer ffmpeg.StopAll()
 
 	a, err := gtk.ApplicationNew("com.github.diamondburned.aqous", 0)
 	if err != nil {
@@ -35,6 +33,13 @@ func main() {
 		w.Show()
 		a.AddWindow(w)
 	})
+
+	if err := s.Start(); err != nil {
+		log.Fatalln("Failed to start mpv:", err)
+	}
+
+	defer s.Stop()
+	defer ffmpeg.StopAll()
 
 	if exitCode := a.Run(os.Args); exitCode > 0 {
 		os.Exit(exitCode)

@@ -112,10 +112,10 @@ func (pp *PlayPause) SetPlaying(playing bool) {
 	pp.playing = playing
 
 	if pp.playing {
-		pp.SetImage(pp.playIcon)
-		pp.SetTooltipText("Playing")
-	} else {
 		pp.SetImage(pp.pauseIcon)
-		pp.SetTooltipText("Paused")
+		pp.SetTooltipText("Pause")
+	} else {
+		pp.SetImage(pp.playIcon)
+		pp.SetTooltipText("Play")
 	}
 }
