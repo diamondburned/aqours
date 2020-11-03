@@ -7,6 +7,7 @@ import (
 	"github.com/diamondburned/aqours/internal/muse/playlist"
 	"github.com/diamondburned/aqours/internal/ui/css"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/gotk3/gotk3/pango"
 )
 
 var titleCSS = css.PrepareClass("title", "")
@@ -26,19 +27,21 @@ type NowPlaying struct {
 
 func NewNowPlaying() *NowPlaying {
 	title, _ := gtk.LabelNew("")
+	title.SetEllipsize(pango.ELLIPSIZE_END)
 	title.SetXAlign(0)
 	title.Show()
 	nowPlayingCSS(title)
 	titleCSS(title)
 
 	subtitle, _ := gtk.LabelNew("")
+	subtitle.SetEllipsize(pango.ELLIPSIZE_END)
 	subtitle.SetXAlign(0)
 	subtitle.Show()
 	nowPlayingCSS(subtitle)
 	subtitleCSS(subtitle)
 
 	subrev, _ := gtk.RevealerNew()
-	subrev.SetTransitionDuration(50)
+	subrev.SetTransitionDuration(100)
 	subrev.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_SLIDE_DOWN)
 	subrev.Add(subtitle)
 	subrev.Show()

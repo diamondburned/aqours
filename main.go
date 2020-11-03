@@ -30,16 +30,18 @@ func main() {
 			log.Fatalln("Failed to create main window:", err)
 		}
 
+		// Start is non-blocking, as it should be when ran inside the main
+		// thread.
+		s.Start()
+
 		w.Show()
 		a.AddWindow(w)
+
+		w.Connect("destroy", func() {
+			s.Stop()
+			ffmpeg.StopAll()
+		})
 	})
-
-	if err := s.Start(); err != nil {
-		log.Fatalln("Failed to start mpv:", err)
-	}
-
-	defer s.Stop()
-	defer ffmpeg.StopAll()
 
 	if exitCode := a.Run(os.Args); exitCode > 0 {
 		os.Exit(exitCode)

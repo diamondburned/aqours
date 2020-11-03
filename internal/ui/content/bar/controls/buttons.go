@@ -1,45 +1,15 @@
-package bar
+package controls
 
-import (
-	"github.com/diamondburned/aqours/internal/ui/css"
-	"github.com/gotk3/gotk3/gtk"
-)
+import "github.com/gotk3/gotk3/gtk"
 
-var playbackButtonCSS = css.PrepareClass("playback-button", `
-	button.playback-button {
-		margin: 16px 8px;
-		margin-left: 0px;
-		opacity: 0.65;
-		box-shadow: none;
-		background: none;
-	}
-
-	button.playback-button:hover {
-		opacity: 1;
-	}
-`)
-
-var prevCSS = css.PrepareClass("previous", ``)
-
-var nextCSS = css.PrepareClass("next", ``)
-
-var playPauseCSS = css.PrepareClass("playpause", `
-	button.playpause {
-		border: 1px solid alpha(@theme_fg_color, 0.35);
-	}
-	button.playpause:hover {
-		border: 1px solid alpha(@theme_fg_color, 0.55);
-	}
-`)
-
-type Controls struct {
+type Buttons struct {
 	gtk.Box
 	Prev *gtk.Button
 	Play *PlayPause // Pause
 	Next *gtk.Button
 }
 
-func NewControls(parent ParentController) *Controls {
+func NewButtons(parent ParentController) *Buttons {
 	prev, _ := gtk.ButtonNewFromIconName("go-first-symbolic", gtk.ICON_SIZE_BUTTON)
 	prev.SetVAlign(gtk.ALIGN_CENTER)
 	prev.Connect("clicked", parent.Previous)
@@ -65,7 +35,7 @@ func NewControls(parent ParentController) *Controls {
 	box.PackStart(next, false, false, 0)
 	box.Show()
 
-	return &Controls{
+	return &Buttons{
 		Box:  *box,
 		Prev: prev,
 		Play: pp,

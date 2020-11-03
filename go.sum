@@ -11,10 +11,14 @@ github.com/diamondburned/gotk3 v0.0.0-20200816224505-3cd69b83a48a h1:wEldljb421/
 github.com/diamondburned/gotk3 v0.0.0-20200816224505-3cd69b83a48a/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
 github.com/diamondburned/handy v0.0.0-20200829011954-4667e7a918f4 h1:qF5VHC35+GyCjUmKz+1O94xpFc0JQd4Ui3h+I955pJw=
 github.com/diamondburned/handy v0.0.0-20200829011954-4667e7a918f4/go.mod h1:V0qyhW4v6KPFwtDpXdBm5aWH7zWEyrzZpcB6MPnKArQ=
+github.com/gotk3/gotk3 v0.5.1-0.20201028052159-952547abf55a h1:9O8VeGmNRqh8UPYLfjYc+W3Gu7vSVTo2uEswq4FO9xI=
+github.com/gotk3/gotk3 v0.5.1-0.20201028052159-952547abf55a/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
 github.com/mitchellh/go-wordwrap v1.0.0/go.mod h1:ZXFpozHsX6DPmq2I0TCekCxypsnAUbP2oI0UX1GXzOo=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/ushis/m3u v0.0.0-20150127162843-94396b784733 h1:m4zGEkIeft/gfUs469WS/gB6NT3RtkG8zQrOvCOzovE=
 github.com/ushis/m3u v0.0.0-20150127162843-94396b784733/go.mod h1:/w56gU05vgM74JSy2/xFy6tUQ9vJBMiciHNvyIEU1UY=
+golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e h1:EHBhcS0mlXEAVwNyO2dLfjToGsyY4j24pTs2ScHnX7s=
+golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
 gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce h1:+JknDZhAj8YMt7GC73Ei8pv4MzjDUNPHgQWJdtMAaDU=
 gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce/go.mod h1:5AcXVHNjg+BDxry382+8OKon8SEWiKktQR07RKPsv1c=

@@ -2,14 +2,13 @@
 package bar
 
 import (
+	"github.com/diamondburned/aqours/internal/ui/content/bar/controls"
 	"github.com/diamondburned/aqours/internal/ui/css"
 	"github.com/gotk3/gotk3/gtk"
 )
 
 type ParentController interface {
-	Previous()
-	SetPlay(playing bool)
-	Next()
+	controls.ParentController
 }
 
 var nowPlayingCSS = css.PrepareClass("now-playing", `
@@ -19,29 +18,42 @@ var nowPlayingCSS = css.PrepareClass("now-playing", `
 `)
 
 type Container struct {
-	gtk.Box
-
-	// TODO: seek bar
+	gtk.Grid
 	NowPlaying *NowPlaying
-	Controls   *Controls
+	Controls   *controls.Container
+	TODOItem   *gtk.Label
 }
 
 func NewContainer(parent ParentController) *Container {
 	nowpl := NewNowPlaying()
-	nowPlayingCSS(nowpl)
+	nowpl.SetHAlign(gtk.ALIGN_START)
 	nowpl.Show()
+	nowPlayingCSS(nowpl)
 
-	controls := NewControls(parent)
+	controls := controls.NewContainer(parent)
+	controls.SetHExpand(true)
+	controls.SetHAlign(gtk.ALIGN_FILL)
 	controls.Show()
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	box.PackStart(nowpl, false, false, 0)
-	box.PackStart(controls, false, false, 0)
-	box.Show()
+	item, _ := gtk.LabelNew("Volume")
+	item.SetHAlign(gtk.ALIGN_END)
+	item.Show()
+
+	grid, _ := gtk.GridNew()
+	grid.SetRowHomogeneous(true)
+	grid.SetColumnHomogeneous(true)
+	grid.SetColumnSpacing(5)
+	grid.SetHExpand(true)
+
+	grid.Attach(nowpl, 0, 0, 1, 1)    // 1st column
+	grid.Attach(controls, 1, 0, 2, 1) // 2nd-3rd; span 2 columns
+	grid.Attach(item, 3, 0, 1, 1)     // 4th column
+	grid.Show()
 
 	return &Container{
-		Box:        *box,
+		Grid:       *grid,
 		NowPlaying: nowpl,
 		Controls:   controls,
+		TODOItem:   item,
 	}
 }

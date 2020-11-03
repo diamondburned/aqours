@@ -4,12 +4,11 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
-	"strconv"
 	"time"
 
 	"github.com/DexterLB/mpvipc"
@@ -17,19 +16,37 @@ import (
 	"github.com/pkg/errors"
 )
 
+type mpvEvent uint
+
 const (
-	allEvent uint = iota
+	allEvent mpvEvent = iota
 	pathEvent
 	pauseEvent
 	bitrateEvent
+	timePositionEvent
+	timeRemainingEvent
 )
+
+var propertyMap = map[mpvEvent]string{
+	pathEvent:          "path",
+	pauseEvent:         "pause",
+	bitrateEvent:       "audio-bitrate",
+	timePositionEvent:  "time-pos",
+	timeRemainingEvent: "time-remaining",
+}
+
+type mpvLineEvent uint
+
+const ()
+
+var mpvLineMatchers = map[mpvLineEvent]*regexp.Regexp{}
 
 // EventHandler methods are all called in the glib main thread.
 type EventHandler interface {
-	OnMPVEvent(event *mpvipc.Event)
 	OnPathUpdate(path string)
 	OnPauseUpdate(pause bool)
-	OnBitrateChange(bitrate int)
+	OnBitrateChange(bitrate float64)
+	OnPositionChange(pos, total float64)
 }
 
 var tmpdir = filepath.Join(os.TempDir(), "aqours")
@@ -75,49 +92,23 @@ func newMpv() (*Session, error) {
 		"--pause",
 		"--no-input-terminal",
 		"--input-ipc-server="+sockPath,
-		"--vo=image",
-		"--vo-image-format=png",
-		"--vo-image-png-compression=9",
-		"--vo-image-outdir="+imagePath,
+		"--no-video",
+		// mpv's vo/image backend is a disappointment.
 	)
 
+	mpvReader := newMpvReader(os.Stderr, mpvLineMatchers)
+	cmd.Stdout = mpvReader
 	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
 
 	conn := mpvipc.NewConnection(sockPath)
 
-	return &Session{
-		Playback:     conn,
-		Command:      cmd,
-		socketPath:   sockPath,
-		imagePath:    imagePath,
-		eventChannel: make(chan *mpvipc.Event, 8),
-		stopEvent:    make(chan struct{}, 1),
-	}, nil
-}
-
-func (s *Session) observeProperties(properties map[uint]string) error {
-	for id, event := range properties {
-		_, err := s.Playback.Call("observe_property_string", id, event)
-		if err != nil {
-			return errors.Wrapf(err, "failed to observe event %q", event)
-		}
-	}
-	return nil
-}
-
-func (s *Session) SetHandler(h EventHandler) {
-	s.handler = h
-}
-
-func (s *Session) Start() error {
-	if err := s.Command.Start(); err != nil {
-		return errors.Wrap(err, "failed to start mpv")
+	if err := cmd.Start(); err != nil {
+		return nil, errors.Wrap(err, "failed to start mpv")
 	}
 
 	// Spin until the socket exists.
 	for {
-		_, err := os.Stat(s.socketPath)
+		_, err := os.Stat(sockPath)
 		if err == nil {
 			break
 		}
@@ -125,52 +116,86 @@ func (s *Session) Start() error {
 		runtime.Gosched()
 	}
 
-	if err := s.Playback.Open(); err != nil {
-		return errors.Wrap(err, "failed to open connection")
+	if err := conn.Open(); err != nil {
+		return nil, errors.Wrap(err, "failed to open connection")
 	}
+
+	for id, event := range propertyMap {
+		_, err := conn.Call("observe_property", id, event)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to observe event %q", event)
+		}
+	}
+
+	return &Session{
+		Playback:     conn,
+		Command:      cmd,
+		mpvRead:      mpvReader,
+		socketPath:   sockPath,
+		imagePath:    imagePath,
+		eventChannel: make(chan *mpvipc.Event, 8),
+		stopEvent:    make(chan struct{}, 1),
+	}, nil
+}
+
+func (s *Session) SetHandler(h EventHandler) {
+	s.handler = h
+}
+
+// Start starts all the event listeners in background goroutines. As such, it is
+// non-blocking.
+func (s *Session) Start() {
+	// Copy the handler so the caller cannot change it.
+	var handler = s.handler
+
+	// This isn't needed for now.
+	// s.mpvRead.Start(func(name mpvLineEvent, matches []string) {})
 
 	go s.Playback.ListenForEvents(s.eventChannel, s.stopEvent)
 
-	err := s.observeProperties(map[uint]string{
-		pathEvent:    "path",
-		pauseEvent:   "pause",
-		bitrateEvent: "audio-bitrate",
-	})
-	if err != nil {
-		return errors.Wrap(err, "failed to observe properties")
-	}
-
 	go func() {
-		for event := range s.eventChannel {
-			event := event // copy
+		// This is kind of racy, but that's about as good as "event-based" as we
+		// can get.
+		var timeRemaining, timePosition float64
 
+		for event := range s.eventChannel {
 			if event.Data == nil {
 				continue
 			}
 
-			switch event.ID {
+			switch mpvEvent(event.ID) {
 			case allEvent:
-				s.handler.OnMPVEvent(event)
+				// noop.
+
 			case pathEvent:
-				glib.IdleAdd(func() { s.handler.OnPathUpdate(event.Data.(string)) })
+				path := event.Data.(string)
+				glib.IdleAdd(func() { handler.OnPathUpdate(path) })
 
 			case pauseEvent:
-				log.Println("paused:", event.Data.(string))
-				b := parseYesNo(event.Data.(string))
-				glib.IdleAdd(func() { s.handler.OnPauseUpdate(b) })
+				b := event.Data.(bool)
+				glib.IdleAdd(func() { handler.OnPauseUpdate(b) })
 
 			case bitrateEvent:
-				i, _ := strconv.Atoi(event.Data.(string))
-				glib.IdleAdd(func() { s.handler.OnBitrateChange(i) })
+				i := event.Data.(float64)
+				glib.IdleAdd(func() { handler.OnBitrateChange(i) })
+
+			case timePositionEvent:
+				timePosition = event.Data.(float64)
+				position, total := timePosition, timePosition+timeRemaining
+				glib.IdleAdd(func() { handler.OnPositionChange(position, total) })
+
+			case timeRemainingEvent:
+				timeRemaining = event.Data.(float64)
+				position, total := timePosition, timePosition+timeRemaining
+				glib.IdleAdd(func() { handler.OnPositionChange(position, total) })
 			}
 		}
 	}()
-
-	return nil
 }
 
 func (s *Session) Stop() {
 	s.Command.Process.Signal(os.Interrupt)
+	s.mpvRead.Close()
 
 	s.Playback.Close()
 	s.stopEvent <- struct{}{}

@@ -32,6 +32,7 @@ func NewContainer(parent ParentController) *Container {
 	box.PackStart(body, true, true, 0)
 	box.PackStart(separator, false, false, 0)
 	box.PackStart(bar, false, false, 0)
+	box.SetHExpand(true)
 	box.Show()
 
 	return &Container{

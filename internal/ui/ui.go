@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/DexterLB/mpvipc"
 	"github.com/diamondburned/aqours/internal/muse"
 	"github.com/diamondburned/aqours/internal/muse/playlist"
 	"github.com/diamondburned/aqours/internal/ui/content"
@@ -39,7 +38,6 @@ func NewMainWindow(a *gtk.Application, session *muse.Session) (*MainWindow, erro
 	}
 	w.SetTitle("Aqours")
 	w.SetDefaultSize(800, 500)
-	w.Show()
 
 	mw := &MainWindow{
 		ApplicationWindow: *w,
@@ -62,10 +60,6 @@ func NewMainWindow(a *gtk.Application, session *muse.Session) (*MainWindow, erro
 	return mw, nil
 }
 
-func (w *MainWindow) OnMPVEvent(event *mpvipc.Event) {
-	// spew.Dump(event)
-}
-
 func (w *MainWindow) OnPathUpdate(path string) {
 	track := w.state.TrackList.Tracks[path]
 	w.Content.Bar.NowPlaying.SetTrack(track.Track)
@@ -73,11 +67,15 @@ func (w *MainWindow) OnPathUpdate(path string) {
 }
 
 func (w *MainWindow) OnPauseUpdate(pause bool) {
-	w.Content.Bar.Controls.Play.SetPlaying(!pause)
+	w.Content.Bar.Controls.Buttons.Play.SetPlaying(!pause)
 }
 
-func (w *MainWindow) OnBitrateChange(bitrate int) {
+func (w *MainWindow) OnBitrateChange(bitrate float64) {
 	log.Println("Bitrate:", bitrate)
+}
+
+func (w *MainWindow) OnPositionChange(pos, total float64) {
+	w.Content.Bar.Controls.Seek.UpdatePosition(pos, total)
 }
 
 func (w *MainWindow) AddPlaylist(path string) {
@@ -138,6 +136,13 @@ func (w *MainWindow) RenamePlaylist(name, newName string) bool {
 	w.SelectPlaylist(newName)
 
 	return true
+}
+
+func (w *MainWindow) Seek(pos float64) {
+	if err := w.muse.Seek(pos); err != nil {
+		log.Println("Seek failed:", err)
+		return
+	}
 }
 
 func (w *MainWindow) Next() {

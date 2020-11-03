@@ -15,6 +15,7 @@ var ErrNoPlaylistLoaded = errors.New("no playlist loaded")
 type Session struct {
 	Playback *mpvipc.Connection
 	Command  *exec.Cmd
+	mpvRead  *mpvReader
 
 	handler EventHandler
 
@@ -62,4 +63,8 @@ func (s *Session) Previous() error {
 func (s *Session) Next() error {
 	_, err := s.Playback.Call("playlist-next", "force")
 	return err
+}
+
+func (s *Session) Seek(pos float64) error {
+	return s.Playback.Set("time-pos", pos)
 }
