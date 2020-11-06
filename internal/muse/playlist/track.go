@@ -21,32 +21,38 @@ type Track struct {
 	Bitrate int
 
 	Filepath string
-
-	probe *ffprobe.ProbeResult
 }
 
-func (t *Track) Probe() (*ffprobe.ProbeResult, error) {
-	if t.probe != nil {
-		return t.probe, nil
+// IsProbed returns true if the track is probed.
+func (t *Track) IsProbed() bool {
+	return t.Bitrate > 0 && t.Length > 0 && !(t.Title == "" && t.Artist == "" && t.Album == "")
+}
+
+func (t *Track) Probe() error {
+	if t.IsProbed() {
+		return nil
 	}
 
+	return t.ForceProbe()
+}
+
+func (t *Track) ForceProbe() error {
 	p, err := ffprobe.Probe(t.Filepath)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	t.probe = p
 
 	t.Title = stringOr(p.Format.Tags["title"], t.Title)
 	t.Artist = stringOr(p.Format.Tags["artist"], t.Artist)
 	t.Album = stringOr(p.Format.Tags["album"], t.Album)
 	t.Number = intOr(p.Format.Tags["track"], t.Number)
-	t.Bitrate = intOr(p.Format.Tags["bitrate"], t.Bitrate)
+	t.Bitrate = intOr(p.Format.BitRate, t.Bitrate)
 
 	if secs, err := strconv.ParseFloat(p.Format.Duration, 64); err == nil {
 		t.Length = time.Duration(secs * float64(time.Second))
 	}
 
-	return p, nil
+	return nil
 }
 
 // AlbumArt queries for an album art and read everything INTO MEMORY! It returns
@@ -85,16 +91,16 @@ func BatchProbe(tracks []*Track, probed func(*Track, error)) {
 
 			for track := range queue {
 				copyTrack := *track
-				_, err := copyTrack.Probe()
-				probed(&copyTrack, err)
+				probed(&copyTrack, copyTrack.Probe())
 			}
 		}()
 	}
 
 	for _, track := range tracks {
-		if track.probe == nil {
-			queue <- track
+		if track.IsProbed() {
+			continue
 		}
+		queue <- track
 	}
 
 	close(queue)

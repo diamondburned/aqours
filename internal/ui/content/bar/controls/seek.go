@@ -30,7 +30,8 @@ var seekBarCSS = css.PrepareClass("seek-bar", `
 		transition: linear 75ms background;
 	}
 
-	scale.seek-bar slider:hover {
+	scale.seek-bar slider:hover,
+	scale.seek-bar trough:hover {
 		/* Shitty hack to limit background size. Thanks, Gtk. */
 		background: radial-gradient(
 			circle,

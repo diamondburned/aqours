@@ -6,8 +6,8 @@ import (
 
 	"github.com/diamondburned/aqours/internal/muse"
 	"github.com/diamondburned/aqours/internal/muse/playlist"
+	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui/content"
-	"github.com/diamondburned/aqours/internal/ui/content/body/tracks"
 	"github.com/diamondburned/aqours/internal/ui/css"
 	"github.com/diamondburned/aqours/internal/ui/header"
 	"github.com/gotk3/gotk3/glib"
@@ -28,7 +28,7 @@ type MainWindow struct {
 	Content *content.Container
 
 	muse  *muse.Session
-	state state
+	state *state.State
 }
 
 func NewMainWindow(a *gtk.Application, session *muse.Session) (*MainWindow, error) {
@@ -42,7 +42,7 @@ func NewMainWindow(a *gtk.Application, session *muse.Session) (*MainWindow, erro
 	mw := &MainWindow{
 		ApplicationWindow: *w,
 		muse:              session,
-		state:             newState(),
+		state:             state.NewState(),
 	}
 
 	mw.Header = header.NewContainer(mw)
@@ -60,8 +60,40 @@ func NewMainWindow(a *gtk.Application, session *muse.Session) (*MainWindow, erro
 	return mw, nil
 }
 
-func (w *MainWindow) OnPathUpdate(path string) {
-	track := w.state.TrackList.Tracks[path]
+// UseState makes the MainWindow use an existing state.
+func (w *MainWindow) UseState(s *state.State) {
+	w.state = s
+
+	for _, p := range w.state.Playlists() {
+		uiPl := w.Content.Body.Sidebar.PlaylistList.AddPlaylist(p.Name)
+		uiPl.SetTotal(len(p.Tracks))
+
+		if p.Name == w.state.CurrentPlaylistName() {
+			w.Content.Body.Sidebar.PlaylistList.SelectPlaylist(uiPl)
+		}
+	}
+}
+
+func (w *MainWindow) OnPathUpdate(playlistPath, songPath string) {
+	playlist, ok := w.state.PlaylistFromPath(playlistPath)
+	if !ok {
+		log.Println("Playlist not found from path:", playlistPath)
+		return
+	}
+
+	trackList, ok := w.Content.Body.TracksView.Lists[playlist.Name]
+	if !ok {
+		log.Println("Track list not found from name:", playlist.Name)
+		return
+	}
+
+	track, ok := trackList.Tracks[songPath]
+	if !ok {
+		log.Println("Track not found in track list from path:", songPath)
+		return
+	}
+
+	trackList.SetPlaying(track)
 	w.Content.Bar.NowPlaying.SetTrack(track.Track)
 	w.Content.Body.Sidebar.AlbumArt.SetTrack(track.Track)
 }
@@ -94,7 +126,7 @@ func (w *MainWindow) AddPlaylist(path string) {
 				return
 			}
 
-			if _, ok := w.state.Playlists[p.Name]; ok {
+			if _, ok := w.state.Playlist(p.Name); ok {
 				log.Println("Duplicated playlist name", p.Name)
 				return
 			}
@@ -102,34 +134,34 @@ func (w *MainWindow) AddPlaylist(path string) {
 			uiPl := w.Content.Body.Sidebar.PlaylistList.AddPlaylist(p.Name)
 			uiPl.SetTotal(len(p.Tracks))
 
-			w.state.Playlists[p.Name] = p
+			w.state.SetPlaylist(p)
 		})
 	}()
 }
 
 func (w *MainWindow) HasPlaylist(name string) bool {
-	_, has := w.state.Playlists[name]
-	return has
+	_, ok := w.state.Playlist(name)
+	return ok
 }
 
 // RenamePlaylist renames a playlist. It only works if we're renaming the
 // current playlist.
 func (w *MainWindow) RenamePlaylist(name, newName string) bool {
-	pl, ok := w.state.Playlists[name]
+	pl, ok := w.state.Playlist(name)
 	if !ok {
 		log.Println("Playlist not found:", name)
 		return false
 	}
 
 	// Collision check.
-	if _, exists := w.state.Playlists[newName]; exists {
+	if _, exists := w.state.Playlist(newName); exists {
 		log.Println("Playlist's new name already exists:", newName)
 		return false
 	}
 
 	pl.Name = newName
-	w.state.Playlists[newName] = pl
-	delete(w.state.Playlists, name)
+	w.state.SetPlaylist(pl)
+	w.state.DeletePlaylist(name)
 
 	w.Content.Body.TracksView.DeletePlaylist(name)
 	w.Content.Body.Sidebar.PlaylistList.Playlist(name).SetName(newName)
@@ -166,8 +198,14 @@ func (w *MainWindow) Previous() {
 	}
 }
 
-func (w *MainWindow) PlayTrack(list *tracks.TrackList, n int) {
-	if err := w.muse.SelectPlaylist(w.state.Playlist.Path); err != nil {
+func (w *MainWindow) PlayTrack(playlistName string, n int) {
+	pl, ok := w.state.Playlist(playlistName)
+	if !ok {
+		log.Println("failed to find playlist from name:", playlistName)
+		return
+	}
+
+	if err := w.muse.SelectPlaylist(pl.Path); err != nil {
 		log.Println("SelectPlaylist failed:", err)
 		return
 	}
@@ -179,16 +217,17 @@ func (w *MainWindow) PlayTrack(list *tracks.TrackList, n int) {
 }
 
 func (w *MainWindow) SelectPlaylist(name string) {
-	pl, ok := w.state.Playlists[name]
+	pl, ok := w.state.Playlist(name)
 	if !ok {
 		log.Println("Playlist not found:", name)
 		return
 	}
 
-	w.state.TrackList = w.Content.Body.TracksView.SelectPlaylist(name)
-	w.state.TrackList.SetTracks(pl.Tracks)
+	w.state.SetCurrentPlaylist(pl)
 
-	w.Header.SetPlaylist(name)
-	w.SetTitle(fmt.Sprintf("%s - Aqours", name))
-	w.state.Playlist = pl
+	tracks := w.Content.Body.TracksView.SelectPlaylist(pl.Name)
+	tracks.SetTracks(pl.Tracks)
+
+	w.Header.SetPlaylist(pl.Name)
+	w.SetTitle(fmt.Sprintf("%s - Aqours", pl.Name))
 }

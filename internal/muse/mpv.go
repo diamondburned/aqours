@@ -43,7 +43,7 @@ var mpvLineMatchers = map[mpvLineEvent]*regexp.Regexp{}
 
 // EventHandler methods are all called in the glib main thread.
 type EventHandler interface {
-	OnPathUpdate(path string)
+	OnPathUpdate(playlistPath, songPath string)
 	OnPauseUpdate(pause bool)
 	OnBitrateChange(bitrate float64)
 	OnPositionChange(pos, total float64)
@@ -169,7 +169,7 @@ func (s *Session) Start() {
 
 			case pathEvent:
 				path := event.Data.(string)
-				glib.IdleAdd(func() { handler.OnPathUpdate(path) })
+				glib.IdleAdd(func() { handler.OnPathUpdate(s.playlistPath, path) })
 
 			case pauseEvent:
 				b := event.Data.(bool)

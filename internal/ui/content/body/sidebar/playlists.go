@@ -16,11 +16,13 @@ var playlistsCSS = css.PrepareClass("playlists", `
 
 type PlaylistList struct {
 	gtk.ListBox
+	parent ParentController
+
 	Playlists []*Playlist
 }
 
 func NewPlaylistList(parent ParentController) *PlaylistList {
-	list := &PlaylistList{}
+	list := &PlaylistList{parent: parent}
 
 	lbox, _ := gtk.ListBoxNew()
 	lbox.SetSelectionMode(gtk.SELECTION_BROWSE)
@@ -47,6 +49,13 @@ func (l *PlaylistList) AddPlaylist(name string) *Playlist {
 	l.Playlists = append(l.Playlists, pl)
 
 	return pl
+}
+
+// SelectPlaylist selects the given playlist.
+func (l *PlaylistList) SelectPlaylist(pl *Playlist) {
+	l.SelectRow(&pl.ListBoxRow)
+	pl.Activate()
+	l.parent.SelectPlaylist(pl.Name)
 }
 
 func (l *PlaylistList) Playlist(name string) *Playlist {

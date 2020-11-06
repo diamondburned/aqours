@@ -6,44 +6,61 @@ import (
 
 	"github.com/diamondburned/aqours/internal/muse"
 	"github.com/diamondburned/aqours/internal/muse/metadata/ffmpeg"
+	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui"
 	"github.com/diamondburned/handy"
+	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 )
 
 func main() {
-	s, err := muse.NewSession()
+	ses, err := muse.NewSession()
 	if err != nil {
 		log.Fatalln("Failed to create mpv session:", err)
 	}
 
-	a, err := gtk.ApplicationNew("com.github.diamondburned.aqous", 0)
+	app, err := gtk.ApplicationNew("com.github.diamondburned.aqous", 0)
 	if err != nil {
 		log.Fatalln("Failed to create a GtkApplication:", err)
 	}
 
-	a.Connect("activate", func() {
+	st, err := state.ReadFromFile()
+	if err != nil {
+		st = state.NewState()
+		log.Printf("failed to restore state (%v); creating a new one.\n", err)
+	}
+
+	app.Connect("activate", func() {
 		handy.Init()
 
-		w, err := ui.NewMainWindow(a, s)
+		w, err := ui.NewMainWindow(app, ses)
 		if err != nil {
 			log.Fatalln("Failed to create main window:", err)
 		}
 
+		w.UseState(st)
+
 		// Start is non-blocking, as it should be when ran inside the main
 		// thread.
-		s.Start()
+		ses.Start()
 
 		w.Show()
-		a.AddWindow(w)
+		app.AddWindow(w)
+
+		// Try to save the state every 30 seconds.
+		glib.TimeoutAdd(30*1000, func() bool {
+			st.Save()
+			return true
+		})
 
 		w.Connect("destroy", func() {
-			s.Stop()
+			ses.Stop()
 			ffmpeg.StopAll()
+			st.ForceSave()
 		})
 	})
 
-	if exitCode := a.Run(os.Args); exitCode > 0 {
+	if exitCode := app.Run(os.Args); exitCode > 0 {
 		os.Exit(exitCode)
 	}
 }
