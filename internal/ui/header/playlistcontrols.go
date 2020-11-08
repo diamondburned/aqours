@@ -3,8 +3,10 @@ package header
 import (
 	"log"
 
+	"github.com/diamondburned/aqours/internal/muse/playlist"
 	"github.com/diamondburned/aqours/internal/ui/actions"
 	"github.com/diamondburned/aqours/internal/ui/css"
+	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -23,6 +25,12 @@ type ParentPlaylistController interface {
 	HasPlaylist(name string) bool
 	// PlaylistName gets the playlist name.
 	PlaylistName() string
+	// GoBack navigates the body leaflet to the left panel.
+	GoBack()
+	// SetUnsaved sets the playlist title to indicate that it is unsaved.
+	SetUnsaved(unsaved bool)
+	// CurrentPlaylist returns the currently displayed playlist.
+	CurrentPlaylist() *playlist.Playlist
 }
 
 type PlaylistControls struct {
@@ -49,13 +57,26 @@ func NewPlaylistControls(parent ParentPlaylistController) *PlaylistControls {
 	rev.Add(hamburger)
 	rev.Show()
 
-	hamMenu.AddAction("Rename", func() { spawnRenameDialog(parent) })
+	hamMenu.AddAction("Rename Playlist", func() { spawnRenameDialog(parent) })
+	hamMenu.AddAction("Save Playlist", func() { savePlaylist(parent) })
 
 	return &PlaylistControls{
 		Revealer:  *rev,
 		Hamburger: hamburger,
 		HamMenu:   hamMenu,
 	}
+}
+
+func savePlaylist(parent ParentPlaylistController) {
+	current := parent.CurrentPlaylist()
+	parent.SetUnsaved(true)
+
+	current.Save(func(err error) {
+		glib.IdleAdd(func() { parent.SetUnsaved(false) })
+		if err != nil {
+			log.Println("failed to save playlist:", err)
+		}
+	})
 }
 
 const nameCollideMsg = "Playlist already exists with the same name."

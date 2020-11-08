@@ -74,6 +74,8 @@ func (w *MainWindow) UseState(s *state.State) {
 	}
 }
 
+func (w *MainWindow) GoBack() { w.Content.Body.SwipeBack() }
+
 func (w *MainWindow) OnPathUpdate(playlistPath, songPath string) {
 	playlist, ok := w.state.PlaylistFromPath(playlistPath)
 	if !ok {
@@ -99,11 +101,22 @@ func (w *MainWindow) OnPathUpdate(playlistPath, songPath string) {
 }
 
 func (w *MainWindow) OnPauseUpdate(pause bool) {
+	w.Content.Vis.Drawer.SetPaused(pause)
 	w.Content.Bar.Controls.Buttons.Play.SetPlaying(!pause)
+
+	if pause {
+		w.Header.SetBitrate(-1)
+	}
+}
+
+func (w *MainWindow) OnRepeatChange(repeat muse.RepeatMode) {
+	// Don't trigger the callback to our methods, as that will cause a feedback
+	// loop.
+	w.Content.Bar.Controls.Buttons.SetRepeat(repeat, false)
 }
 
 func (w *MainWindow) OnBitrateChange(bitrate float64) {
-	log.Println("Bitrate:", bitrate)
+	w.Header.SetBitrate(bitrate)
 }
 
 func (w *MainWindow) OnPositionChange(pos, total float64) {
@@ -184,6 +197,13 @@ func (w *MainWindow) Next() {
 	}
 }
 
+func (w *MainWindow) Previous() {
+	if err := w.muse.Previous(); err != nil {
+		log.Println("Previous failed:", err)
+		return
+	}
+}
+
 func (w *MainWindow) SetPlay(playing bool) {
 	if err := w.muse.SetPlay(playing); err != nil {
 		log.Println("SetPlay failed:", err)
@@ -191,10 +211,16 @@ func (w *MainWindow) SetPlay(playing bool) {
 	}
 }
 
-func (w *MainWindow) Previous() {
-	if err := w.muse.Previous(); err != nil {
-		log.Println("Previous failed:", err)
+func (w *MainWindow) SetShuffle(shuffle bool) {
+	if err := w.muse.SetShuffle(shuffle); err != nil {
+		log.Println("SetShuffle failed:", err)
 		return
+	}
+}
+
+func (w *MainWindow) SetRepeat(mode muse.RepeatMode) {
+	if err := w.muse.SetRepeat(mode); err != nil {
+		log.Println("SetRepeat failed:", err)
 	}
 }
 
@@ -228,6 +254,6 @@ func (w *MainWindow) SelectPlaylist(name string) {
 	tracks := w.Content.Body.TracksView.SelectPlaylist(pl.Name)
 	tracks.SetTracks(pl.Tracks)
 
-	w.Header.SetPlaylist(pl.Name)
+	w.Header.SetPlaylist(pl)
 	w.SetTitle(fmt.Sprintf("%s - Aqours", pl.Name))
 }

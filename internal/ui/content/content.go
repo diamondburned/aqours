@@ -16,6 +16,7 @@ type Container struct {
 
 	Body *body.Container
 	Bar  *bar.Container
+	Vis  *bar.Visualizer
 }
 
 func NewContainer(parent ParentController) *Container {
@@ -25,19 +26,20 @@ func NewContainer(parent ParentController) *Container {
 	separator, _ := gtk.SeparatorNew(gtk.ORIENTATION_VERTICAL)
 	separator.Show()
 
-	bar := bar.NewContainer(parent)
-	bar.Show()
+	vis := bar.NewVisualizer(parent)
+	vis.Show()
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	box.PackStart(body, true, true, 0)
 	box.PackStart(separator, false, false, 0)
-	box.PackStart(bar, false, false, 0)
+	box.PackStart(vis, false, false, 0)
 	box.SetHExpand(true)
 	box.Show()
 
 	return &Container{
 		Box:  *box,
 		Body: body,
-		Bar:  bar,
+		Bar:  vis.Container,
+		Vis:  vis,
 	}
 }

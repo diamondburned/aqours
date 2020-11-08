@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,26 +26,51 @@ const (
 	bitrateEvent
 	timePositionEvent
 	timeRemainingEvent
+	repeatFileEvent
+	repeatPlaylistEvent
 )
 
 var propertyMap = map[mpvEvent]string{
-	pathEvent:          "path",
-	pauseEvent:         "pause",
-	bitrateEvent:       "audio-bitrate",
-	timePositionEvent:  "time-pos",
-	timeRemainingEvent: "time-remaining",
+	pathEvent:           "path",
+	pauseEvent:          "pause",
+	bitrateEvent:        "audio-bitrate",
+	timePositionEvent:   "time-pos",
+	timeRemainingEvent:  "time-remaining",
+	repeatPlaylistEvent: "loop-playlist",
+	repeatFileEvent:     "loop-file",
 }
 
 type mpvLineEvent uint
 
-const ()
-
 var mpvLineMatchers = map[mpvLineEvent]*regexp.Regexp{}
+
+type RepeatMode uint8
+
+const (
+	RepeatNone RepeatMode = iota
+	RepeatAll
+	RepeatSingle
+	repeatLen
+)
+
+func enableRepeat(playlist bool) RepeatMode {
+	if playlist {
+		return RepeatAll
+	}
+	return RepeatSingle
+}
+
+// Cycle returns the next mode to be activated when the repeat button is
+// constantly pressed.
+func (m RepeatMode) Cycle() RepeatMode {
+	return (m + 1) % repeatLen
+}
 
 // EventHandler methods are all called in the glib main thread.
 type EventHandler interface {
 	OnPathUpdate(playlistPath, songPath string)
 	OnPauseUpdate(pause bool)
+	OnRepeatChange(repeat RepeatMode)
 	OnBitrateChange(bitrate float64)
 	OnPositionChange(pos, total float64)
 }
@@ -188,9 +214,43 @@ func (s *Session) Start() {
 				timeRemaining = event.Data.(float64)
 				position, total := timePosition, timePosition+timeRemaining
 				glib.IdleAdd(func() { handler.OnPositionChange(position, total) })
+
+			case repeatFileEvent:
+				sf := s.validRepeatValue(false, event.Data)
+				glib.IdleAdd(func() { handler.OnRepeatChange(sf) })
+
+			case repeatPlaylistEvent:
+				sf := s.validRepeatValue(true, event.Data)
+				glib.IdleAdd(func() { handler.OnRepeatChange(sf) })
 			}
 		}
 	}()
+}
+
+func (s *Session) validRepeatValue(pl bool, v interface{}) (repeat RepeatMode) {
+	log.Println("repeat value:", v)
+
+	repeat = RepeatNone
+
+	switch v := v.(type) {
+	case bool:
+		if v {
+			repeat = enableRepeat(pl)
+		}
+	case string:
+		switch v {
+		case "inf", "force":
+			repeat = enableRepeat(pl)
+		}
+	}
+
+	if b, ok := v.(bool); ok && b {
+	}
+
+	// This makes no guarantees that mpv's state is behaving as expected,
+	// because it's a lot of code.
+
+	return
 }
 
 func (s *Session) Stop() {

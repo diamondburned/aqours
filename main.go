@@ -6,6 +6,7 @@ import (
 
 	"github.com/diamondburned/aqours/internal/muse"
 	"github.com/diamondburned/aqours/internal/muse/metadata/ffmpeg"
+	"github.com/diamondburned/aqours/internal/muse/playlist"
 	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui"
 	"github.com/diamondburned/handy"
@@ -19,7 +20,7 @@ func main() {
 		log.Fatalln("Failed to create mpv session:", err)
 	}
 
-	app, err := gtk.ApplicationNew("com.github.diamondburned.aqous", 0)
+	app, err := gtk.ApplicationNew("com.github.diamondburned.aqours", 0)
 	if err != nil {
 		log.Fatalln("Failed to create a GtkApplication:", err)
 	}
@@ -47,9 +48,10 @@ func main() {
 		w.Show()
 		app.AddWindow(w)
 
-		// Try to save the state every 30 seconds.
+		// Try to save the state and all playlists every 30 seconds.
 		glib.TimeoutAdd(30*1000, func() bool {
 			st.Save()
+			savePlaylists(st.Playlists())
 			return true
 		})
 
@@ -62,5 +64,13 @@ func main() {
 
 	if exitCode := app.Run(os.Args); exitCode > 0 {
 		os.Exit(exitCode)
+	}
+}
+
+func savePlaylists(pl []*playlist.Playlist) {
+	for _, playlist := range pl {
+		playlist.Save(func(err error) {
+			log.Printf("failed to periodically save playlist %q: %v\n", playlist.Name, err)
+		})
 	}
 }

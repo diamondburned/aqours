@@ -19,7 +19,7 @@ in pkgs.stdenv.mkDerivation rec {
 	version = "0.0.2";
 
 	buildInputs = [ libhandy ] ++ (with pkgs; [
-		gnome3.glib gnome3.gtk mpv ffmpeg
+		gnome3.glib gnome3.gtk mpv ffmpeg fftw portaudio
 	]);
 
 	nativeBuildInputs = with pkgs; [

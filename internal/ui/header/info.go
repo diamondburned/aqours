@@ -1,12 +1,16 @@
 package header
 
 import (
+	"fmt"
+	"html"
+
 	"github.com/gotk3/gotk3/gtk"
 )
 
 type PlaylistInfo struct {
 	gtk.Label // name
 	Playlist  string
+	Unsaved   bool
 }
 
 func NewPlaylistInfo() *PlaylistInfo {
@@ -26,11 +30,21 @@ func NewPlaylistInfo() *PlaylistInfo {
 }
 
 func (info *PlaylistInfo) Reset() {
-	info.SetLabel("Aqours")
+	info.SetMarkup("<b>Aqours</b>")
 	info.Playlist = ""
 }
 
 func (info *PlaylistInfo) SetPlaylist(name string) {
-	info.SetLabel(name)
+	info.SetText(name)
 	info.Playlist = name
+}
+
+func (info *PlaylistInfo) SetUnsaved(unsaved bool) {
+	info.Unsaved = unsaved
+
+	if unsaved {
+		info.SetMarkup(fmt.Sprintf("<i>%s</i>", html.EscapeString(info.Playlist)))
+	} else {
+		info.SetText(info.Playlist)
+	}
 }

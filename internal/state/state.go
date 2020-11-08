@@ -40,6 +40,9 @@ type State struct {
 type jsonState struct {
 	Playlists       []*playlist.Playlist `json:"playlists"`
 	CurrentPlaylist string               `json:"current_playlist"`
+
+	Shuffling bool `json:"shuffling"`
+	Repeating bool `json:"repeating"`
 }
 
 func NewState() *State {

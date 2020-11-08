@@ -30,7 +30,9 @@ const (
 )
 
 type Container struct {
-	gtk.TreeView
+	gtk.Stack
+	parent ParentController
+
 	Lists map[string]*TrackList // tree model
 
 	// current treeview playlist name
@@ -38,52 +40,44 @@ type Container struct {
 }
 
 func NewContainer(parent ParentController) *Container {
-	c := &Container{
-		Lists: map[string]*TrackList{},
+	stack, _ := gtk.StackNew()
+	stack.SetTransitionType(gtk.STACK_TRANSITION_TYPE_CROSSFADE)
+	stack.SetTransitionDuration(25)
+	stack.Show()
+
+	return &Container{
+		parent: parent,
+		Stack:  *stack,
+		Lists:  map[string]*TrackList{},
 	}
-
-	tree, _ := gtk.TreeViewNew()
-	tree.SetActivateOnSingleClick(false)
-	tree.AppendColumn(newColumn("Title", columnTitle))
-	tree.AppendColumn(newColumn("Artist", columnArtist))
-	tree.AppendColumn(newColumn("Album", columnAlbum))
-	tree.AppendColumn(newColumn("", columnTime))
-	tree.AppendColumn(newColumn("", columnSelected))
-	tree.Show()
-	c.TreeView = *tree
-
-	tree.Connect("row-activated", func(_ *gtk.TextView, path *gtk.TreePath) {
-		parent.PlayTrack(c.current, path.GetIndices()[0])
-	})
-
-	return c
 }
 
 func (c *Container) SelectPlaylist(name string) *TrackList {
 	pl, ok := c.Lists[name]
 	if !ok {
-		pl = NewTrackList()
+		pl = NewTrackList(name, c.parent)
 		c.Lists[name] = pl
+		c.Stack.AddNamed(pl, name)
 	}
 
 	c.current = name
-	c.TreeView.SetModel(pl)
+	c.Stack.SetVisibleChild(pl)
 	return pl
 }
 
 func (c *Container) DeletePlaylist(name string) {
-	if _, ok := c.Lists[name]; !ok {
+	pl, ok := c.Lists[name]
+	if !ok {
 		return
 	}
 
 	c.current = ""
-	c.TreeView.SetModel(nil)
+	c.Stack.Remove(pl)
 	delete(c.Lists, name)
 }
 
 func newColumn(text string, col columnType) *gtk.TreeViewColumn {
 	r, _ := gtk.CellRendererTextNew()
-	// r.SetProperty("weight", pango.WEIGHT_ULTRABOLD)
 	r.SetProperty("weight-set", true)
 	r.SetProperty("ellipsize", pango.ELLIPSIZE_END)
 	r.SetProperty("ellipsize-set", true)
@@ -111,14 +105,18 @@ func newColumn(text string, col columnType) *gtk.TreeViewColumn {
 type TrackPath = string
 
 type TrackList struct {
-	gtk.ListStore
+	gtk.ScrolledWindow
+	Tree   *gtk.TreeView
+	Store  *gtk.ListStore
+	Select *gtk.TreeSelection
+
 	Paths  []string
 	Tracks map[TrackPath]*Track
 
 	playing *Track
 }
 
-func NewTrackList() *TrackList {
+func NewTrackList(name string, parent ParentController) *TrackList {
 	store, _ := gtk.ListStoreNew(
 		glib.TYPE_STRING, // columnTitle
 		glib.TYPE_STRING, // columnArtist
@@ -127,19 +125,58 @@ func NewTrackList() *TrackList {
 		glib.TYPE_INT,    // columnSelected - pango.Weight
 	)
 
+	tree, _ := gtk.TreeViewNewWithModel(store)
+	tree.SetActivateOnSingleClick(false)
+	tree.AppendColumn(newColumn("Title", columnTitle))
+	tree.AppendColumn(newColumn("Artist", columnArtist))
+	tree.AppendColumn(newColumn("Album", columnAlbum))
+	tree.AppendColumn(newColumn("", columnTime))
+	tree.AppendColumn(newColumn("", columnSelected))
+	tree.Show()
+
+	tree.Connect("row-activated", func(_ *gtk.TextView, path *gtk.TreePath) {
+		parent.PlayTrack(name, path.GetIndices()[0])
+	})
+
+	s, _ := tree.GetSelection()
+	s.SetMode(gtk.SELECTION_MULTIPLE)
+
+	scroll, _ := gtk.ScrolledWindowNew(nil, nil)
+	scroll.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
+	scroll.SetVExpand(true)
+	scroll.Add(tree)
+	scroll.Show()
+
 	return &TrackList{
-		ListStore: *store,
-		Tracks:    map[TrackPath]*Track{},
+		ScrolledWindow: *scroll,
+
+		Tree:   tree,
+		Store:  store,
+		Select: s,
+		Tracks: map[TrackPath]*Track{},
 	}
 }
 
 func (list *TrackList) SetPlaying(playing *Track) {
 	if list.playing != nil {
-		list.playing.SetBold(list, false)
+		list.playing.SetBold(list.Store, false)
+
+		// Decide if we should move the selection.
+		reselect := true &&
+			list.Select.CountSelectedRows() == 1 &&
+			list.Select.IterIsSelected(list.playing.Iter)
+
+		if reselect {
+			list.Select.UnselectIter(list.playing.Iter)
+			list.Select.SelectIter(playing.Iter)
+
+			path, _ := list.Store.GetPath(playing.Iter)
+			list.Tree.ScrollToCell(path, nil, false, 0, 0)
+		}
 	}
 
 	list.playing = playing
-	list.playing.SetBold(list, true)
+	list.playing.SetBold(list.Store, true)
 }
 
 func (list *TrackList) SetTracks(tracks []*playlist.Track) {
@@ -151,10 +188,10 @@ func (list *TrackList) SetTracks(tracks []*playlist.Track) {
 
 		advTrack := &Track{
 			Track: track,
-			Iter:  list.ListStore.Append(),
+			Iter:  list.Store.Append(),
 		}
 
-		advTrack.setListStore(list)
+		advTrack.setListStore(list.Store)
 		list.Paths = append(list.Paths, track.Filepath)
 		list.Tracks[track.Filepath] = advTrack
 	}
@@ -173,7 +210,7 @@ func (list *TrackList) SetTracks(tracks []*playlist.Track) {
 				// Update the underneath struct value, not the pointer itself.
 				wrapTrack.Track = updatedTrack
 				// Update the list entry as well.
-				wrapTrack.setListStore(list)
+				wrapTrack.setListStore(list.Store)
 			}
 		})
 	})

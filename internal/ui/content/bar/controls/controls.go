@@ -1,43 +1,18 @@
 package controls
 
 import (
-	"github.com/diamondburned/aqours/internal/ui/css"
+	"github.com/diamondburned/aqours/internal/muse"
 	"github.com/gotk3/gotk3/gtk"
 )
 
 type ParentController interface {
 	Previous()
-	SetPlay(playing bool)
 	Next()
 	Seek(position float64)
+	SetPlay(playing bool)
+	SetRepeat(repeatMode muse.RepeatMode)
+	SetShuffle(shuffle bool)
 }
-
-var playbackButtonCSS = css.PrepareClass("playback-button", `
-	button.playback-button {
-		margin: 2px 8px;
-		margin-top: 12px;
-		opacity: 0.65;
-		box-shadow: none;
-		background: none;
-	}
-
-	button.playback-button:hover {
-		opacity: 1;
-	}
-`)
-
-var prevCSS = css.PrepareClass("previous", ``)
-
-var nextCSS = css.PrepareClass("next", ``)
-
-var playPauseCSS = css.PrepareClass("playpause", `
-	button.playpause {
-		border: 1px solid alpha(@theme_fg_color, 0.35);
-	}
-	button.playpause:hover {
-		border: 1px solid alpha(@theme_fg_color, 0.55);
-	}
-`)
 
 type Container struct {
 	gtk.Box
