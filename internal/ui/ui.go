@@ -21,6 +21,16 @@ func init() {
 	`)
 }
 
+func assert(b bool, e string) {
+	if !b {
+		log.Panicln("BUG: assertion failed:", e)
+	}
+}
+
+// maxErrorThreshold is the error threshold before the player stops seeking.
+// Refer to errCounter.
+const maxErrorThreshold = 3
+
 type MainWindow struct {
 	gtk.ApplicationWindow
 
@@ -29,6 +39,9 @@ type MainWindow struct {
 
 	muse  *muse.Session
 	state *state.State
+
+	// errCounter is the counter to print errors before pausing.
+	errCounter int
 }
 
 func NewMainWindow(a *gtk.Application, session *muse.Session) (*MainWindow, error) {
@@ -64,11 +77,14 @@ func NewMainWindow(a *gtk.Application, session *muse.Session) (*MainWindow, erro
 func (w *MainWindow) UseState(s *state.State) {
 	w.state = s
 
-	for _, p := range w.state.Playlists() {
-		uiPl := w.Content.Body.Sidebar.PlaylistList.AddPlaylist(p.Name)
-		uiPl.SetTotal(len(p.Tracks))
+	// Restore the state.
+	w.Content.Bar.Controls.Buttons.SetRepeat(w.state.RepeatMode(), false)
+	w.Content.Bar.Controls.Buttons.SetShuffle(w.state.IsShuffling())
 
-		if p.Name == w.state.CurrentPlaylistName() {
+	for _, p := range w.state.Playlists() {
+		uiPl := w.Content.Body.Sidebar.PlaylistList.AddPlaylist(p)
+
+		if p.Name == w.state.PlayingPlaylistName() {
 			w.Content.Body.Sidebar.PlaylistList.SelectPlaylist(uiPl)
 		}
 	}
@@ -76,28 +92,33 @@ func (w *MainWindow) UseState(s *state.State) {
 
 func (w *MainWindow) GoBack() { w.Content.Body.SwipeBack() }
 
-func (w *MainWindow) OnPathUpdate(playlistPath, songPath string) {
-	playlist, ok := w.state.PlaylistFromPath(playlistPath)
-	if !ok {
-		log.Println("Playlist not found from path:", playlistPath)
+func (w *MainWindow) OnSongFinish(err error) {
+	log.Println("song finished:", err)
+
+	if err != nil {
+		w.errCounter++
+
+		log.Println("Error playing track:", err)
+
+		if w.errCounter > maxErrorThreshold {
+			w.SetPlay(false)
+			return
+		}
+	}
+
+	if w.errCounter > 0 {
+		w.errCounter = 0
+	}
+
+	// Play the next song.
+	track := w.state.AutoNext()
+	if track != nil {
+		log.Println("playing track", track.Title)
+		w.playTrack(track)
 		return
 	}
 
-	trackList, ok := w.Content.Body.TracksView.Lists[playlist.Name]
-	if !ok {
-		log.Println("Track list not found from name:", playlist.Name)
-		return
-	}
-
-	track, ok := trackList.Tracks[songPath]
-	if !ok {
-		log.Println("Track not found in track list from path:", songPath)
-		return
-	}
-
-	trackList.SetPlaying(track)
-	w.Content.Bar.NowPlaying.SetTrack(track.Track)
-	w.Content.Body.Sidebar.AlbumArt.SetTrack(track.Track)
+	log.Println("nil track")
 }
 
 func (w *MainWindow) OnPauseUpdate(pause bool) {
@@ -107,12 +128,6 @@ func (w *MainWindow) OnPauseUpdate(pause bool) {
 	if pause {
 		w.Header.SetBitrate(-1)
 	}
-}
-
-func (w *MainWindow) OnRepeatChange(repeat muse.RepeatMode) {
-	// Don't trigger the callback to our methods, as that will cause a feedback
-	// loop.
-	w.Content.Bar.Controls.Buttons.SetRepeat(repeat, false)
 }
 
 func (w *MainWindow) OnBitrateChange(bitrate float64) {
@@ -144,9 +159,7 @@ func (w *MainWindow) AddPlaylist(path string) {
 				return
 			}
 
-			uiPl := w.Content.Body.Sidebar.PlaylistList.AddPlaylist(p.Name)
-			uiPl.SetTotal(len(p.Tracks))
-
+			w.Content.Body.Sidebar.PlaylistList.AddPlaylist(p)
 			w.state.SetPlaylist(p)
 		})
 	}()
@@ -191,16 +204,16 @@ func (w *MainWindow) Seek(pos float64) {
 }
 
 func (w *MainWindow) Next() {
-	if err := w.muse.Next(); err != nil {
-		log.Println("Next failed:", err)
-		return
+	track := w.state.Next()
+	if track != nil {
+		w.playTrack(track)
 	}
 }
 
 func (w *MainWindow) Previous() {
-	if err := w.muse.Previous(); err != nil {
-		log.Println("Previous failed:", err)
-		return
+	track := w.state.Previous()
+	if track != nil {
+		w.playTrack(track)
 	}
 }
 
@@ -212,34 +225,43 @@ func (w *MainWindow) SetPlay(playing bool) {
 }
 
 func (w *MainWindow) SetShuffle(shuffle bool) {
-	if err := w.muse.SetShuffle(shuffle); err != nil {
-		log.Println("SetShuffle failed:", err)
-		return
-	}
+	w.state.SetShuffling(shuffle)
+	w.Content.Bar.Controls.Buttons.SetShuffle(shuffle)
 }
 
-func (w *MainWindow) SetRepeat(mode muse.RepeatMode) {
-	if err := w.muse.SetRepeat(mode); err != nil {
-		log.Println("SetRepeat failed:", err)
-	}
+func (w *MainWindow) SetRepeat(mode state.RepeatMode) {
+	w.state.SetRepeatMode(mode)
+	w.Content.Bar.Controls.Buttons.SetRepeat(mode, false)
 }
 
 func (w *MainWindow) PlayTrack(playlistName string, n int) {
-	pl, ok := w.state.Playlist(playlistName)
-	if !ok {
-		log.Println("failed to find playlist from name:", playlistName)
+	// Change the playing playlist if needed.
+	if w.state.PlayingPlaylistName() != playlistName {
+		pl, ok := w.state.Playlist(playlistName)
+		if !ok {
+			log.Println("failed to find playlist from name:", playlistName)
+			return
+		}
+		w.state.SetPlayingPlaylist(pl)
+	}
+
+	w.playTrack(w.state.Play(n))
+}
+
+func (w *MainWindow) playTrack(track *playlist.Track) {
+	if err := w.muse.PlayTrack(track.Filepath); err != nil {
+		log.Println("PlayTrack failed:", err)
 		return
 	}
 
-	if err := w.muse.SelectPlaylist(pl.Path); err != nil {
-		log.Println("SelectPlaylist failed:", err)
-		return
-	}
+	playing := w.state.PlayingPlaylist()
 
-	if err := w.muse.PlayTrackIndex(n); err != nil {
-		log.Println("PlayTrackIndex failed:", err)
-		return
-	}
+	trackList, ok := w.Content.Body.TracksView.Lists[playing.Name]
+	assert(ok, "track list not found from name: "+playing.Name)
+
+	trackList.SetPlaying(track)
+	w.Content.Bar.NowPlaying.SetTrack(track)
+	w.Content.Body.Sidebar.AlbumArt.SetTrack(track)
 }
 
 func (w *MainWindow) SelectPlaylist(name string) {
@@ -249,11 +271,9 @@ func (w *MainWindow) SelectPlaylist(name string) {
 		return
 	}
 
-	w.state.SetCurrentPlaylist(pl)
+	// Don't change the state's playing playlist.
 
-	tracks := w.Content.Body.TracksView.SelectPlaylist(pl.Name)
-	tracks.SetTracks(pl.Tracks)
-
+	w.Content.Body.TracksView.SelectPlaylist(pl)
 	w.Header.SetPlaylist(pl)
 	w.SetTitle(fmt.Sprintf("%s - Aqours", pl.Name))
 }

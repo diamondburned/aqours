@@ -1,7 +1,7 @@
 package controls
 
 import (
-	"github.com/diamondburned/aqours/internal/muse"
+	"github.com/diamondburned/aqours/internal/state"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -10,7 +10,7 @@ type ParentController interface {
 	Next()
 	Seek(position float64)
 	SetPlay(playing bool)
-	SetRepeat(repeatMode muse.RepeatMode)
+	SetRepeat(repeatMode state.RepeatMode)
 	SetShuffle(shuffle bool)
 }
 

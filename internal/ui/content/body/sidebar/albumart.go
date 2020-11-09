@@ -2,6 +2,7 @@ package sidebar
 
 import (
 	"log"
+	"strings"
 
 	"github.com/diamondburned/aqours/internal/muse/playlist"
 	"github.com/diamondburned/aqours/internal/ui/css"
@@ -63,6 +64,8 @@ func (aa *AlbumArt) SetTrack(track *playlist.Track) {
 		}
 
 		// We need to do this to make GdkPixbufLoader happy.
+		a.Ext = strings.ToLower(a.Ext)
+
 		if a.Ext == "jpg" {
 			a.Ext = "jpeg"
 		}

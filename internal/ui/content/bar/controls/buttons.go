@@ -1,7 +1,7 @@
 package controls
 
 import (
-	"github.com/diamondburned/aqours/internal/muse"
+	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui/css"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
@@ -47,7 +47,7 @@ var playPauseCSS = css.PrepareClass("playpause", `
 var repeatShuffleButtonCSS = css.PrepareClass("repeat-shuffle", `
 	button:checked {
 		color:   @theme_selected_bg_color;
-		opacity: 0.75;
+		opacity: 0.8;
 	}
 	button:checked:hover {
 		opacity: 1;
@@ -125,7 +125,7 @@ func (b *Buttons) SetShuffle(shuffle bool) {
 }
 
 // SetRepeat sets Repeat's mode. It does NOT trigger a callback to the parent.
-func (b *Buttons) SetRepeat(mode muse.RepeatMode, callback bool) {
+func (b *Buttons) SetRepeat(mode state.RepeatMode, callback bool) {
 	b.Repeat.SetRepeat(mode, callback)
 }
 
@@ -134,7 +134,7 @@ type Repeat struct {
 	parent   ParentController
 	handleID glib.SignalHandle
 
-	state      muse.RepeatMode
+	state      state.RepeatMode
 	icon       *gtk.Image
 	singleIcon *gtk.Image
 }
@@ -155,17 +155,19 @@ func NewRepeat(parent ParentController) *Repeat {
 	repeat := &Repeat{
 		ToggleButton: *button,
 		parent:       parent,
-		state:        muse.RepeatNone,
+		state:        state.RepeatNone,
 		icon:         icon,
 		singleIcon:   singleIcon,
 	}
 
-	repeat.handleID, _ = button.Connect("toggled", repeat.CycleState)
+	repeat.handleID, _ = button.Connect("toggled", func() {
+		parent.SetRepeat(repeat.state.Cycle())
+	})
 
 	return repeat
 }
 
-func (r *Repeat) SetRepeat(mode muse.RepeatMode, callback bool) {
+func (r *Repeat) SetRepeat(mode state.RepeatMode, callback bool) {
 	// We should disable the handler here, as we don't want the callback to have
 	// a feedback loop.
 	if !callback {
@@ -176,22 +178,18 @@ func (r *Repeat) SetRepeat(mode muse.RepeatMode, callback bool) {
 	r.state = mode
 
 	switch mode {
-	case muse.RepeatNone:
+	case state.RepeatNone:
 		r.SetActive(false)
 		r.SetImage(r.icon)
 
-	case muse.RepeatSingle:
+	case state.RepeatSingle:
 		r.SetActive(true)
 		r.SetImage(r.singleIcon)
 
-	case muse.RepeatAll:
+	case state.RepeatAll:
 		r.SetActive(true)
 		r.SetImage(r.icon)
 	}
-}
-
-func (r *Repeat) CycleState() {
-	r.parent.SetRepeat(r.state.Cycle())
 }
 
 type PlayPause struct {

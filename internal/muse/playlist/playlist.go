@@ -65,6 +65,7 @@ func (pl Playlist) IsUnsaved() bool {
 // Save saves the playlist. The function might be called in another goroutine.
 func (pl *Playlist) Save(done func(error)) {
 	if !pl.unsaved {
+		done(nil)
 		return
 	}
 

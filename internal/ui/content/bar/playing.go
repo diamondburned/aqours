@@ -70,10 +70,13 @@ func (np *NowPlaying) StopPlaying() {
 }
 
 func (np *NowPlaying) SetTrack(track *playlist.Track) {
-	np.Title.SetLabel(track.Title)
 	np.SubReveal.SetRevealChild(true)
+
+	// np.Title.SetMarkup(fmt.Sprintf(`<span size="large">%s</span>`, track.Title))
+	np.Title.SetText(track.Title)
+
 	np.Subtitle.SetMarkup(fmt.Sprintf(
-		`<span size="small">%s - %s</span>`,
+		`%s <span alpha="50%%">- %s</span>`,
 		html.EscapeString(track.Artist), html.EscapeString(track.Album),
 	))
 }

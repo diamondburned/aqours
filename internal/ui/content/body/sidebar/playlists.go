@@ -3,6 +3,7 @@ package sidebar
 import (
 	"fmt"
 
+	"github.com/diamondburned/aqours/internal/muse/playlist"
 	"github.com/diamondburned/aqours/internal/ui/css"
 	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gtk"
@@ -37,18 +38,18 @@ func NewPlaylistList(parent ParentController) *PlaylistList {
 	return list
 }
 
-func (l *PlaylistList) AddPlaylist(name string) *Playlist {
+func (l *PlaylistList) AddPlaylist(pl *playlist.Playlist) *Playlist {
 	for _, playlist := range l.Playlists {
-		if playlist.Name == name {
-			return nil
+		if playlist.Name == pl.Name {
+			return playlist
 		}
 	}
 
-	pl := NewPlaylist(name, 0)
-	l.ListBox.Add(pl)
-	l.Playlists = append(l.Playlists, pl)
+	playlist := NewPlaylist(pl.Name, len(pl.Tracks))
+	l.ListBox.Add(playlist)
+	l.Playlists = append(l.Playlists, playlist)
 
-	return pl
+	return playlist
 }
 
 // SelectPlaylist selects the given playlist.

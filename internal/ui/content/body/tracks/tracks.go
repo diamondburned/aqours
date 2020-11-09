@@ -1,11 +1,8 @@
 package tracks
 
 import (
-	"log"
-
 	"github.com/diamondburned/aqours/internal/durafmt"
 	"github.com/diamondburned/aqours/internal/muse/playlist"
-	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
 )
@@ -52,15 +49,15 @@ func NewContainer(parent ParentController) *Container {
 	}
 }
 
-func (c *Container) SelectPlaylist(name string) *TrackList {
-	pl, ok := c.Lists[name]
+func (c *Container) SelectPlaylist(playlist *playlist.Playlist) *TrackList {
+	pl, ok := c.Lists[playlist.Name]
 	if !ok {
-		pl = NewTrackList(name, c.parent)
-		c.Lists[name] = pl
-		c.Stack.AddNamed(pl, name)
+		pl = NewTrackList(c.parent, playlist)
+		c.Lists[playlist.Name] = pl
+		c.Stack.AddNamed(pl, playlist.Name)
 	}
 
-	c.current = name
+	c.current = playlist.Name
 	c.Stack.SetVisibleChild(pl)
 	return pl
 }
@@ -100,120 +97,6 @@ func newColumn(text string, col columnType) *gtk.TreeViewColumn {
 	}
 
 	return c
-}
-
-type TrackPath = string
-
-type TrackList struct {
-	gtk.ScrolledWindow
-	Tree   *gtk.TreeView
-	Store  *gtk.ListStore
-	Select *gtk.TreeSelection
-
-	Paths  []string
-	Tracks map[TrackPath]*Track
-
-	playing *Track
-}
-
-func NewTrackList(name string, parent ParentController) *TrackList {
-	store, _ := gtk.ListStoreNew(
-		glib.TYPE_STRING, // columnTitle
-		glib.TYPE_STRING, // columnArtist
-		glib.TYPE_STRING, // columnAlbum
-		glib.TYPE_STRING, // columnTime
-		glib.TYPE_INT,    // columnSelected - pango.Weight
-	)
-
-	tree, _ := gtk.TreeViewNewWithModel(store)
-	tree.SetActivateOnSingleClick(false)
-	tree.AppendColumn(newColumn("Title", columnTitle))
-	tree.AppendColumn(newColumn("Artist", columnArtist))
-	tree.AppendColumn(newColumn("Album", columnAlbum))
-	tree.AppendColumn(newColumn("", columnTime))
-	tree.AppendColumn(newColumn("", columnSelected))
-	tree.Show()
-
-	tree.Connect("row-activated", func(_ *gtk.TextView, path *gtk.TreePath) {
-		parent.PlayTrack(name, path.GetIndices()[0])
-	})
-
-	s, _ := tree.GetSelection()
-	s.SetMode(gtk.SELECTION_MULTIPLE)
-
-	scroll, _ := gtk.ScrolledWindowNew(nil, nil)
-	scroll.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
-	scroll.SetVExpand(true)
-	scroll.Add(tree)
-	scroll.Show()
-
-	return &TrackList{
-		ScrolledWindow: *scroll,
-
-		Tree:   tree,
-		Store:  store,
-		Select: s,
-		Tracks: map[TrackPath]*Track{},
-	}
-}
-
-func (list *TrackList) SetPlaying(playing *Track) {
-	if list.playing != nil {
-		list.playing.SetBold(list.Store, false)
-
-		// Decide if we should move the selection.
-		reselect := true &&
-			list.Select.CountSelectedRows() == 1 &&
-			list.Select.IterIsSelected(list.playing.Iter)
-
-		if reselect {
-			list.Select.UnselectIter(list.playing.Iter)
-			list.Select.SelectIter(playing.Iter)
-
-			path, _ := list.Store.GetPath(playing.Iter)
-			list.Tree.ScrollToCell(path, nil, false, 0, 0)
-		}
-	}
-
-	list.playing = playing
-	list.playing.SetBold(list.Store, true)
-}
-
-func (list *TrackList) SetTracks(tracks []*playlist.Track) {
-	for _, track := range tracks {
-		// Skip existing tracks.
-		if _, ok := list.Tracks[track.Filepath]; ok {
-			continue
-		}
-
-		advTrack := &Track{
-			Track: track,
-			Iter:  list.Store.Append(),
-		}
-
-		advTrack.setListStore(list.Store)
-		list.Paths = append(list.Paths, track.Filepath)
-		list.Tracks[track.Filepath] = advTrack
-	}
-
-	// TODO: this has a cache stampede problem. We need to have a context to
-	// cancel this.
-	go playlist.BatchProbe(tracks, func(updatedTrack *playlist.Track, err error) {
-		if err != nil {
-			log.Println("Failed to probe:", err)
-			return
-		}
-
-		glib.IdleAdd(func() {
-			wrapTrack, ok := list.Tracks[updatedTrack.Filepath]
-			if ok {
-				// Update the underneath struct value, not the pointer itself.
-				wrapTrack.Track = updatedTrack
-				// Update the list entry as well.
-				wrapTrack.setListStore(list.Store)
-			}
-		})
-	})
 }
 
 type Track struct {

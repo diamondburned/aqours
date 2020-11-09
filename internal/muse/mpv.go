@@ -1,10 +1,11 @@
 package muse
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
-	"log"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,56 +22,32 @@ type mpvEvent uint
 
 const (
 	allEvent mpvEvent = iota
-	pathEvent
 	pauseEvent
 	bitrateEvent
 	timePositionEvent
 	timeRemainingEvent
-	repeatFileEvent
-	repeatPlaylistEvent
 )
 
+var events = []string{
+	"idle",
+	"end-file",
+}
+
 var propertyMap = map[mpvEvent]string{
-	pathEvent:           "path",
-	pauseEvent:          "pause",
-	bitrateEvent:        "audio-bitrate",
-	timePositionEvent:   "time-pos",
-	timeRemainingEvent:  "time-remaining",
-	repeatPlaylistEvent: "loop-playlist",
-	repeatFileEvent:     "loop-file",
+	pauseEvent:         "pause",
+	bitrateEvent:       "audio-bitrate",
+	timePositionEvent:  "time-pos",
+	timeRemainingEvent: "time-remaining",
 }
 
 type mpvLineEvent uint
 
 var mpvLineMatchers = map[mpvLineEvent]*regexp.Regexp{}
 
-type RepeatMode uint8
-
-const (
-	RepeatNone RepeatMode = iota
-	RepeatAll
-	RepeatSingle
-	repeatLen
-)
-
-func enableRepeat(playlist bool) RepeatMode {
-	if playlist {
-		return RepeatAll
-	}
-	return RepeatSingle
-}
-
-// Cycle returns the next mode to be activated when the repeat button is
-// constantly pressed.
-func (m RepeatMode) Cycle() RepeatMode {
-	return (m + 1) % repeatLen
-}
-
 // EventHandler methods are all called in the glib main thread.
 type EventHandler interface {
-	OnPathUpdate(playlistPath, songPath string)
+	OnSongFinish(err error)
 	OnPauseUpdate(pause bool)
-	OnRepeatChange(repeat RepeatMode)
 	OnBitrateChange(bitrate float64)
 	OnPositionChange(pos, total float64)
 }
@@ -101,14 +78,9 @@ func generateMpvSock() string {
 
 func newMpv() (*Session, error) {
 	sockPath := generateMpvSock()
-	imagePath := generateImageOutDir()
 
 	if err := os.MkdirAll(filepath.Dir(sockPath), os.ModePerm); err != nil {
 		return nil, errors.Wrap(err, "failed to make socket directory")
-	}
-
-	if err := os.MkdirAll(filepath.Dir(imagePath), os.ModePerm); err != nil {
-		return nil, errors.Wrap(err, "failed to make image directory")
 	}
 
 	cmd := exec.Command(
@@ -117,13 +89,13 @@ func newMpv() (*Session, error) {
 		"--quiet",
 		"--pause",
 		"--no-input-terminal",
+		"--gapless-audio=weak",
 		"--input-ipc-server="+sockPath,
 		"--no-video",
 		// mpv's vo/image backend is a disappointment.
 	)
 
-	mpvReader := newMpvReader(os.Stderr, mpvLineMatchers)
-	cmd.Stdout = mpvReader
+	cmd.Stdout = nil
 	cmd.Stderr = os.Stderr
 
 	conn := mpvipc.NewConnection(sockPath)
@@ -132,33 +104,49 @@ func newMpv() (*Session, error) {
 		return nil, errors.Wrap(err, "failed to start mpv")
 	}
 
-	// Spin until the socket exists.
-	for {
-		_, err := os.Stat(sockPath)
-		if err == nil {
-			break
-		}
+	// Give us a 5-second period timeout.
+	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
+	defer cancel()
 
-		runtime.Gosched()
+	// Spin until we can connect.
+	var err error
+RetryOpen:
+	for {
+		err = conn.Open()
+		if err == nil {
+			break RetryOpen
+		}
+		select {
+		case <-ctx.Done():
+			break RetryOpen
+		default:
+			runtime.Gosched()
+			continue RetryOpen
+		}
 	}
 
-	if err := conn.Open(); err != nil {
+	if err != nil {
 		return nil, errors.Wrap(err, "failed to open connection")
 	}
 
-	for id, event := range propertyMap {
-		_, err := conn.Call("observe_property", id, event)
+	for _, event := range events {
+		_, err := conn.Call("enable_event", event)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to observe event %q", event)
+			return nil, errors.Wrapf(err, "failed to enable event %q", event)
+		}
+	}
+
+	for id, property := range propertyMap {
+		_, err := conn.Call("observe_property", id, property)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to observe property %q", property)
 		}
 	}
 
 	return &Session{
 		Playback:     conn,
 		Command:      cmd,
-		mpvRead:      mpvReader,
 		socketPath:   sockPath,
-		imagePath:    imagePath,
 		eventChannel: make(chan *mpvipc.Event, 8),
 		stopEvent:    make(chan struct{}, 1),
 	}, nil
@@ -174,9 +162,6 @@ func (s *Session) Start() {
 	// Copy the handler so the caller cannot change it.
 	var handler = s.handler
 
-	// This isn't needed for now.
-	// s.mpvRead.Start(func(name mpvLineEvent, matches []string) {})
-
 	go s.Playback.ListenForEvents(s.eventChannel, s.stopEvent)
 
 	go func() {
@@ -186,16 +171,12 @@ func (s *Session) Start() {
 
 		for event := range s.eventChannel {
 			if event.Data == nil {
-				continue
+				goto handleAllEvents
 			}
 
 			switch mpvEvent(event.ID) {
 			case allEvent:
-				// noop.
-
-			case pathEvent:
-				path := event.Data.(string)
-				glib.IdleAdd(func() { handler.OnPathUpdate(s.playlistPath, path) })
+				goto handleAllEvents
 
 			case pauseEvent:
 				b := event.Data.(bool)
@@ -214,48 +195,35 @@ func (s *Session) Start() {
 				timeRemaining = event.Data.(float64)
 				position, total := timePosition, timePosition+timeRemaining
 				glib.IdleAdd(func() { handler.OnPositionChange(position, total) })
+			}
 
-			case repeatFileEvent:
-				sf := s.validRepeatValue(false, event.Data)
-				glib.IdleAdd(func() { handler.OnRepeatChange(sf) })
+			continue
 
-			case repeatPlaylistEvent:
-				sf := s.validRepeatValue(true, event.Data)
-				glib.IdleAdd(func() { handler.OnRepeatChange(sf) })
+		handleAllEvents:
+			switch event.Name {
+			case "idle":
+				glib.IdleAdd(func() { handler.OnSongFinish(nil) })
+
+			case "end-file":
+				// Empty reason means not end of file. Don't do anything.
+				// Sometimes, when a track ends or we change the track, this
+				// event is fired with an empty reason. Thankfully, we could
+				// also check for the "idle" event instead, so this event will
+				// be used more for errors.
+				if event.Reason != "" {
+					var err error
+					if event.Reason != "eof" {
+						err = fmt.Errorf("error while playing: %s", event.Reason)
+					}
+					glib.IdleAdd(func() { handler.OnSongFinish(err) })
+				}
 			}
 		}
 	}()
 }
 
-func (s *Session) validRepeatValue(pl bool, v interface{}) (repeat RepeatMode) {
-	log.Println("repeat value:", v)
-
-	repeat = RepeatNone
-
-	switch v := v.(type) {
-	case bool:
-		if v {
-			repeat = enableRepeat(pl)
-		}
-	case string:
-		switch v {
-		case "inf", "force":
-			repeat = enableRepeat(pl)
-		}
-	}
-
-	if b, ok := v.(bool); ok && b {
-	}
-
-	// This makes no guarantees that mpv's state is behaving as expected,
-	// because it's a lot of code.
-
-	return
-}
-
 func (s *Session) Stop() {
 	s.Command.Process.Signal(os.Interrupt)
-	s.mpvRead.Close()
 
 	s.Playback.Close()
 	s.stopEvent <- struct{}{}
@@ -263,12 +231,4 @@ func (s *Session) Stop() {
 	s.Command.Wait()
 
 	os.Remove(s.socketPath)
-	os.RemoveAll(s.imagePath)
-}
-
-func parseYesNo(yesno string) bool {
-	if yesno == "yes" {
-		return true
-	}
-	return false
 }

@@ -1,16 +1,22 @@
 package playlist
 
 import (
+	"math/rand"
 	"os"
-	"runtime"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/dhowden/tag"
 	"github.com/diamondburned/aqours/internal/muse/metadata/ffprobe"
 	"github.com/pkg/errors"
 )
+
+// ShuffleTracks shuffles the given list of tracks.
+func ShuffleTracks(tracks []*Track) {
+	rand.Shuffle(len(tracks), func(i, j int) {
+		tracks[i], tracks[j] = tracks[j], tracks[i]
+	})
+}
 
 type Track struct {
 	Title   string
@@ -25,7 +31,9 @@ type Track struct {
 
 // IsProbed returns true if the track is probed.
 func (t *Track) IsProbed() bool {
-	return t.Bitrate > 0 && t.Length > 0 && !(t.Title == "" && t.Artist == "" && t.Album == "")
+	return false ||
+		(t.Bitrate > 0 && t.Length > 0) ||
+		(t.Title != "" && t.Artist != "" && t.Album != "")
 }
 
 func (t *Track) Probe() error {
@@ -73,38 +81,6 @@ func (t *Track) AlbumArt() (*tag.Picture, error) {
 	}
 
 	return m.Picture(), nil
-}
-
-var maxJobs = runtime.GOMAXPROCS(-1)
-
-// BatchProbe batch probes the given slice of track pointers. Although a slice
-// of pointers are given, the Probe method will actually be called on a copy of
-// the track. The probed callback should therefore reapply the track.
-func BatchProbe(tracks []*Track, probed func(*Track, error)) {
-	queue := make(chan *Track, maxJobs)
-	waitg := sync.WaitGroup{}
-	waitg.Add(maxJobs)
-
-	for i := 0; i < maxJobs; i++ {
-		go func() {
-			defer waitg.Done()
-
-			for track := range queue {
-				copyTrack := *track
-				probed(&copyTrack, copyTrack.Probe())
-			}
-		}()
-	}
-
-	for _, track := range tracks {
-		if track.IsProbed() {
-			continue
-		}
-		queue <- track
-	}
-
-	close(queue)
-	waitg.Wait()
 }
 
 func stringOr(str, or string) string {
