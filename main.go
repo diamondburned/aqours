@@ -70,6 +70,9 @@ func main() {
 func savePlaylists(pl []*playlist.Playlist) {
 	for _, playlist := range pl {
 		playlist.Save(func(err error) {
+			if err == nil {
+				return
+			}
 			log.Printf("failed to periodically save playlist %q: %v\n", playlist.Name, err)
 		})
 	}

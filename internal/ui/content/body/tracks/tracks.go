@@ -8,7 +8,8 @@ import (
 )
 
 type ParentController interface {
-	PlayTrack(playlistName string, index int)
+	PlayTrack(p *playlist.Playlist, index int)
+	UpdateTracks(p *playlist.Playlist)
 }
 
 type ListStorer interface {
@@ -99,22 +100,21 @@ func newColumn(text string, col columnType) *gtk.TreeViewColumn {
 	return c
 }
 
-type Track struct {
-	*playlist.Track
+type TrackRow struct {
 	Bold bool
 	Iter *gtk.TreeIter
 }
 
-func (t *Track) SetBold(store ListStorer, bold bool) {
-	t.Bold = bold
-	store.SetValue(t.Iter, columnSelected, weight(t.Bold))
+func (row *TrackRow) SetBold(store ListStorer, bold bool) {
+	row.Bold = bold
+	store.SetValue(row.Iter, columnSelected, weight(row.Bold))
 }
 
-func (t *Track) setListStore(store ListStorer) {
+func (row *TrackRow) setListStore(t *playlist.Track, store ListStorer) {
 	store.Set(
-		t.Iter,
+		row.Iter,
 		[]int{columnTitle, columnArtist, columnAlbum, columnTime, columnSelected},
-		[]interface{}{t.Title, t.Artist, t.Album, durafmt.Format(t.Length), weight(t.Bold)},
+		[]interface{}{t.Title, t.Artist, t.Album, durafmt.Format(t.Length), weight(row.Bold)},
 	)
 }
 

@@ -19,14 +19,15 @@ func ShuffleTracks(tracks []*Track) {
 }
 
 type Track struct {
-	Title   string
-	Artist  string
-	Album   string
+	Title  string
+	Artist string
+	Album  string
+
+	Filepath string
+
 	Number  int
 	Length  time.Duration
 	Bitrate int
-
-	Filepath string
 }
 
 // IsProbed returns true if the track is probed.

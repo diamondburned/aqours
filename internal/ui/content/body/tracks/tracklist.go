@@ -3,9 +3,7 @@ package tracks
 import (
 	"log"
 	"net/url"
-	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/diamondburned/aqours/internal/muse/playlist"
 	"github.com/gotk3/gotk3/gdk"
@@ -21,9 +19,10 @@ type TrackList struct {
 	Store  *gtk.ListStore
 	Select *gtk.TreeSelection
 
-	Tracks []*Track
+	Playlist  *playlist.Playlist
+	TrackRows map[*playlist.Track]*TrackRow
 
-	playing *Track
+	playing *playlist.Track
 }
 
 var trackListDragTargets = []gtk.TargetEntry{
@@ -53,35 +52,8 @@ func NewTrackList(parent ParentController, pl *playlist.Playlist) *TrackList {
 	tree.AppendColumn(newColumn("", columnSelected))
 	tree.Show()
 
-	tree.Connect("row-activated", func(_ *gtk.TextView, path *gtk.TreePath) {
-		parent.PlayTrack(pl.Name, path.GetIndices()[0])
-	})
-
 	// tree.SetReorderable(true)
 	// tree.Connect("")
-
-	tree.DragDestSet(gtk.DEST_DEFAULT_ALL, trackListDragTargets, gdk.ACTION_LINK)
-	tree.Connect("drag-data-received",
-		func(_ gtk.IWidget, ctx *gdk.DragContext, x, y uint, data *gtk.SelectionData) {
-			// Get the files in form of line-delimited URIs
-			var uris = strings.Fields(string(data.GetData()))
-
-			// Create a path slice that we decode URIs into.
-			var paths = uris[:0]
-
-			// Decode the URIs.
-			for _, uri := range uris {
-				u, err := url.Parse(uri)
-				if err != nil {
-					log.Printf("Failed parsing URI %q: %v\n", uri, err)
-					continue
-				}
-				paths = append(paths, u.Path)
-			}
-
-			log.Printf("%q\n", paths)
-		},
-	)
 
 	s, _ := tree.GetSelection()
 	s.SetMode(gtk.SELECTION_MULTIPLE)
@@ -99,113 +71,139 @@ func NewTrackList(parent ParentController, pl *playlist.Playlist) *TrackList {
 		Store:  store,
 		Select: s,
 
-		Tracks: make([]*Track, len(pl.Tracks)),
+		Playlist:  pl,
+		TrackRows: make(map[*playlist.Track]*TrackRow, len(pl.Tracks)),
 	}
 
-	var probeQueue = make([]*probeJob, 0, len(pl.Tracks))
+	tree.Connect("row-activated", func(_ *gtk.TextView, path *gtk.TreePath) {
+		parent.PlayTrack(pl, path.GetIndices()[0])
+	})
 
-	for i, track := range pl.Tracks {
-		advTrack := &Track{
-			Track: track,
-			Iter:  list.Store.Append(),
+	// TODO: Implement TreeView drag-and-drop for reordering. Effectively, the
+	// application should use the standardized file URI as the data for
+	// reordering, which should make it work with a range of applications.
+	//
+	// To deal with the lack of data when we move the tracks out and in the
+	// list, we could have a remove track and add path functions. The add
+	// function would simply treat the track as an unprocessed one.
+
+	tree.EnableModelDragDest(trackListDragTargets, gdk.ACTION_LINK)
+	tree.Connect("drag-data-received",
+		func(_ gtk.IWidget, ctx *gdk.DragContext, x, y int, data *gtk.SelectionData) {
+			path, pos, ok := tree.GetDestRowAtPos(x, y)
+			if !ok {
+				log.Println("No path found at dragged pos.")
+				return
+			}
+
+			// Get the files in form of line-delimited URIs
+			var uris = strings.Fields(string(data.GetData()))
+
+			// Create a path slice that we decode URIs into.
+			var paths = uris[:0]
+
+			// Decode the URIs.
+			for _, uri := range uris {
+				u, err := url.Parse(uri)
+				if err != nil {
+					log.Printf("Failed parsing URI %q: %v\n", uri, err)
+					continue
+				}
+				if u.Scheme != "file" {
+					log.Println("Unknown file scheme (only locals):", u.Scheme)
+					continue
+				}
+				paths = append(paths, u.Path)
+			}
+
+			if len(paths) == 0 {
+				return
+			}
+
+			// log.Println("Dragged into", list.Tracks[path.GetIndices()[0]].Filepath)
+			// log.Printf("%q\n", paths)
+
+			ix := path.GetIndices()[0]
+			before := false ||
+				pos == gtk.TREE_VIEW_DROP_BEFORE ||
+				pos == gtk.TREE_VIEW_DROP_INTO_OR_BEFORE
+
+			start, end := list.Playlist.Add(ix, before, paths...)
+			probeQueue := make([]probeJob, 0, end-start)
+
+			for i := start; i < end; i++ {
+				row := &TrackRow{
+					Iter: list.Store.Insert(i),
+					Bold: false,
+				}
+				track := list.Playlist.Tracks[i]
+
+				row.setListStore(track, list.Store)
+				list.TrackRows[track] = row
+
+				probeQueue = append(probeQueue, newProbeJob(&list, track, row))
+			}
+
+			parent.UpdateTracks(list.Playlist)
+			queueProbeJobs(probeQueue...)
+		},
+	)
+
+	// Create a nil slice and leave the allocation for later.
+	var probeQueue []probeJob
+
+	for _, track := range pl.Tracks {
+		row := &TrackRow{
+			Iter: list.Store.Append(),
+			Bold: false,
 		}
 
-		advTrack.setListStore(list.Store)
-		list.Tracks[i] = advTrack
+		row.setListStore(track, list.Store)
+		list.TrackRows[track] = row
 
 		if !track.IsProbed() {
-			probeQueue = append(probeQueue, &probeJob{
-				adv:   advTrack,
-				track: *track,
-			})
+			// Allocate a slice only if we have at least 1.
+			if probeQueue == nil {
+				probeQueue = make([]probeJob, 0, len(pl.Tracks))
+			}
+			probeQueue = append(probeQueue, newProbeJob(&list, track, row))
 		}
 	}
 
 	// TODO: this has a cache stampede problem. We need to have a context to
 	// cancel this.
-	go batchProbe(list.Store, probeQueue)
+	if len(probeQueue) > 0 {
+		queueProbeJobs(probeQueue...)
+	}
 
 	return &list
 }
 
-func (list *TrackList) findTrack(track *playlist.Track) *Track {
-	for _, advTrack := range list.Tracks {
-		if advTrack.Track == track {
-			return advTrack
-		}
-	}
-	return nil
-}
-
 func (list *TrackList) SetPlaying(playing *playlist.Track) {
-	var advTrack = list.findTrack(playing)
+	rw, ok := list.TrackRows[playing]
+	if !ok {
+		log.Printf("Track not found on (*Tracklist).SetPlaying: %q\n", playing.Filepath)
+		return
+	}
 
 	if list.playing != nil {
-		list.playing.SetBold(list.Store, false)
+		playingRow := list.TrackRows[list.playing]
+		playingRow.SetBold(list.Store, false)
 
 		// Decide if we should move the selection.
 		reselect := true &&
 			list.Select.CountSelectedRows() == 1 &&
-			list.Select.IterIsSelected(list.playing.Iter)
+			list.Select.IterIsSelected(playingRow.Iter)
 
 		if reselect {
-			list.Select.UnselectIter(list.playing.Iter)
-			list.Select.SelectIter(advTrack.Iter)
+			list.Select.UnselectIter(playingRow.Iter)
+			list.Select.SelectIter(rw.Iter)
 
-			path, _ := list.Store.GetPath(advTrack.Iter)
+			path, _ := list.Store.GetPath(rw.Iter)
 			list.Tree.ScrollToCell(path, nil, false, 0, 0)
 		}
 	}
 
-	list.playing = advTrack
-	list.playing.SetBold(list.Store, true)
-}
-
-var maxJobs = runtime.GOMAXPROCS(-1)
-
-// probeJob is an internal type that allows a track to be copied in a
-// thread-safe way for probing.
-type probeJob struct {
-	adv   *Track
-	track playlist.Track
-}
-
-// batchProbe batch probes the given slice of track pointers. Although a slice
-// of pointers are given, the Probe method will actually be called on a copy of
-// the track. The probed callback should therefore reapply the track.
-func batchProbe(store ListStorer, tracks []*probeJob) {
-	queue := make(chan *probeJob, maxJobs)
-	waitg := sync.WaitGroup{}
-	waitg.Add(maxJobs)
-
-	for i := 0; i < maxJobs; i++ {
-		go func() {
-			defer waitg.Done()
-
-			for job := range queue {
-				job := job // copy must
-
-				if err := job.track.Probe(); err != nil {
-					log.Printf("Failed to probe %q: %v", job.track.Filepath, err)
-					continue
-				}
-
-				glib.IdleAdd(func() {
-					// Update everything inside the old track.
-					*job.adv.Track = job.track
-
-					// Update the list entry afterwards.
-					// TODO: check invalidation.
-					job.adv.setListStore(store)
-				})
-			}
-		}()
-	}
-
-	for _, track := range tracks {
-		queue <- track
-	}
-
-	close(queue)
-	waitg.Wait()
+	list.playing = playing
+	rw.SetBold(list.Store, true)
 }

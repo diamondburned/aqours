@@ -108,6 +108,11 @@ func UnmarshalState(jsonBytes []byte) (*State, error) {
 	return state, nil
 }
 
+// RefreshQueue refreshes completely the current play queue.
+func (s *State) RefreshQueue() {
+	s.SetPlayingPlaylist(s.playing.Playlist)
+}
+
 // assertCoherentState asserts everything in the JSON state with the helper
 // pointers.
 func (s *State) assertCoherentState() {
@@ -158,11 +163,18 @@ func (s *State) Playlists() []*playlist.Playlist {
 	return s.state.Playlists
 }
 
-// SetPlaylist sets a playlist. It does not check for collision.
-func (s *State) SetPlaylist(p *playlist.Playlist) {
-	for i, playlist := range s.state.Playlists {
+func (s *State) RenamePlaylist(p *playlist.Playlist, oldName string) {
+	if oldName == s.state.PlayingPlaylist {
+		s.state.PlayingPlaylist = p.Name
+	}
+}
+
+// AddPlaylist adds a playlist. If a playlist with the same name is added, then
+// the function does nothing.
+func (s *State) AddPlaylist(p *playlist.Playlist) {
+	for _, playlist := range s.state.Playlists {
 		if playlist.Name == p.Name {
-			s.state.Playlists[i] = playlist
+			log.Println("Playlist collision while adding:", p.Name)
 			return
 		}
 	}
@@ -203,6 +215,11 @@ func (s *State) SetPlayingPlaylist(pl *playlist.Playlist) {
 	s.playing.PlayQueue = make([]*playlist.Track, len(pl.Tracks))
 	// Copy all tracks.
 	copy(s.playing.PlayQueue, pl.Tracks)
+
+	if s.state.Shuffling {
+		// Reshuffle.
+		s.SetShuffling(true)
+	}
 }
 
 // PlayingPlaylist returns the playing playlist, or nil if none. It panics if
@@ -260,9 +277,12 @@ func (s *State) SetShuffling(shuffling bool) {
 	for i, track := range s.playing.PlayQueue {
 		if track.Filepath == s.state.PlayingSongPath {
 			s.playing.QueuePos = i
-			break
+			return
 		}
 	}
+
+	// We couldn't find QueuePos for some reason. Reset it to 0.
+	s.playing.QueuePos = 0
 }
 
 // RepeatMode returns the current repeat mode.

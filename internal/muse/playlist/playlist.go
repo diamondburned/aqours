@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"sync"
 )
 
 type (
@@ -35,6 +36,7 @@ type FixableError interface {
 
 func Register(fileExt string, r PlaylistReader, w PlaylistWriter) {
 	playlistReaders[fileExt] = r
+	playlistWriters[fileExt] = w
 }
 
 func ParseFile(path string) (*Playlist, error) {
@@ -47,6 +49,9 @@ func ParseFile(path string) (*Playlist, error) {
 }
 
 type Playlist struct {
+	// DO NOT COPY!!! The state relies on the pointers being the same.
+	_ [0]sync.Mutex
+
 	Name   string
 	Path   string
 	Tracks []*Track
@@ -55,11 +60,43 @@ type Playlist struct {
 }
 
 func (pl *Playlist) SetUnsaved() {
-	pl.unsaved = true
+	if !pl.unsaved {
+		pl.unsaved = true
+	}
 }
 
-func (pl Playlist) IsUnsaved() bool {
+func (pl *Playlist) IsUnsaved() bool {
 	return pl.unsaved
+}
+
+// Add adds the given path to a track to the current playlist. It marks the
+// playlist as unsaved. If before is false, then the track is appended after the
+// index. If before is true, then the track is appended before the index. The
+// returned integers are the positions of the inserted tracks. If len(paths) is
+// 0, then ix is returned for both.
+func (pl *Playlist) Add(ix int, before bool, paths ...string) (start, end int) {
+	if len(paths) == 0 {
+		return ix, ix
+	}
+
+	pl.unsaved = true
+
+	if !before {
+		ix++
+	}
+
+	// https://github.com/golang/go/wiki/SliceTricks
+	pl.Tracks = append(pl.Tracks, make([]*Track, len(paths))...)
+	copy(pl.Tracks[ix+len(paths):], pl.Tracks[ix:])
+
+	for i, path := range paths {
+		pl.Tracks[ix+i] = &Track{
+			Title:    filepath.Base(path),
+			Filepath: path,
+		}
+	}
+
+	return ix, ix + len(paths)
 }
 
 // Save saves the playlist. The function might be called in another goroutine.

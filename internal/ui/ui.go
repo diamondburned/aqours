@@ -155,12 +155,21 @@ func (w *MainWindow) AddPlaylist(path string) {
 			}
 
 			if _, ok := w.state.Playlist(p.Name); ok {
-				log.Println("Duplicated playlist name", p.Name)
-				return
+				// Try and mangle the name.
+				var mangle int
+				var name string
+
+				for {
+					if _, ok := w.state.Playlist(p.Name); !ok {
+						break
+					}
+					mangle++
+					p.Name = fmt.Sprintf("%s~%d", name, mangle)
+				}
 			}
 
 			w.Content.Body.Sidebar.PlaylistList.AddPlaylist(p)
-			w.state.SetPlaylist(p)
+			w.state.AddPlaylist(p)
 		})
 	}()
 }
@@ -172,25 +181,18 @@ func (w *MainWindow) HasPlaylist(name string) bool {
 
 // RenamePlaylist renames a playlist. It only works if we're renaming the
 // current playlist.
-func (w *MainWindow) RenamePlaylist(name, newName string) bool {
-	pl, ok := w.state.Playlist(name)
-	if !ok {
-		log.Println("Playlist not found:", name)
-		return false
-	}
-
+func (w *MainWindow) RenamePlaylist(pl *playlist.Playlist, newName string) bool {
 	// Collision check.
 	if _, exists := w.state.Playlist(newName); exists {
-		log.Println("Playlist's new name already exists:", newName)
 		return false
 	}
 
+	plName := pl.Name
 	pl.Name = newName
-	w.state.SetPlaylist(pl)
-	w.state.DeletePlaylist(name)
+	w.state.RenamePlaylist(pl, plName)
 
-	w.Content.Body.TracksView.DeletePlaylist(name)
-	w.Content.Body.Sidebar.PlaylistList.Playlist(name).SetName(newName)
+	w.Content.Body.TracksView.DeletePlaylist(plName)
+	w.Content.Body.Sidebar.PlaylistList.Playlist(plName).SetName(newName)
 	w.SelectPlaylist(newName)
 
 	return true
@@ -234,18 +236,22 @@ func (w *MainWindow) SetRepeat(mode state.RepeatMode) {
 	w.Content.Bar.Controls.Buttons.SetRepeat(mode, false)
 }
 
-func (w *MainWindow) PlayTrack(playlistName string, n int) {
+func (w *MainWindow) PlayTrack(playlist *playlist.Playlist, n int) {
 	// Change the playing playlist if needed.
-	if w.state.PlayingPlaylistName() != playlistName {
-		pl, ok := w.state.Playlist(playlistName)
-		if !ok {
-			log.Println("failed to find playlist from name:", playlistName)
-			return
-		}
-		w.state.SetPlayingPlaylist(pl)
+	if w.state.PlayingPlaylistName() != playlist.Name {
+		w.state.SetPlayingPlaylist(playlist)
 	}
 
 	w.playTrack(w.state.Play(n))
+}
+
+func (w *MainWindow) UpdateTracks(playlist *playlist.Playlist) {
+	// If we've updated the current playlist, then we should also refresh the
+	// play queue.
+	if w.state.PlayingPlaylist() == playlist {
+		w.state.RefreshQueue()
+		w.Header.Info.SetUnsaved(playlist.IsUnsaved())
+	}
 }
 
 func (w *MainWindow) playTrack(track *playlist.Track) {

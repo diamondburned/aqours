@@ -18,7 +18,7 @@ type ParentController interface {
 	// ParentPlaylistController methods.
 	GoBack()
 	HasPlaylist(name string) bool
-	RenamePlaylist(oldName, newName string) bool
+	RenamePlaylist(pl *playlist.Playlist, newName string) bool
 }
 
 type Container struct {
@@ -100,7 +100,7 @@ func (c *Container) SetPlaylist(pl *playlist.Playlist) {
 	c.current = pl
 
 	if pl != nil {
-		c.Info.SetPlaylist(pl.Name)
+		c.Info.SetPlaylist(pl)
 		c.Right.SetRevealChild(true)
 	} else {
 		c.Info.Reset()
@@ -114,9 +114,9 @@ func (c *Container) CurrentPlaylist() *playlist.Playlist {
 
 // RenamePlaylist calls the parent's RenamePlaylist with the current name.
 func (c *Container) RenamePlaylist(newName string) {
-	renamed := c.ParentController.RenamePlaylist(c.Info.Playlist, newName)
+	renamed := c.ParentController.RenamePlaylist(c.current, newName)
 	if renamed {
-		c.Info.SetPlaylist(newName)
+		c.Info.SetPlaylist(c.current)
 	}
 }
 
