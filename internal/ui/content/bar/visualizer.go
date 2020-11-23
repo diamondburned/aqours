@@ -28,14 +28,15 @@ func NewVisualizer(parent ParentController) *Visualizer {
 	container.Show()
 
 	config := catnip.NewConfig()
-	config.SampleRate = 32000 // Half of CD's.
-	config.SampleSize = 32000 / FrameRate
+	config.SampleRate = 22050
+	config.SampleSize = 22050 / FrameRate
 	config.Backend = "parec" // TODO: FIXME
 	config.BarWidth = 4      // decent size
 	config.SpaceWidth = 1    // decent size
 	config.SmoothFactor = 50 // magic number!
 	config.MinimumClamp = 4  // hide bars that are too low
 	config.ForceEven = true  // sharpen the bars
+	config.Symmetry = catnip.Horizontal
 	config.WindowFn = catnip.WrapExternalWindowFn(window.Blackman)
 	// config.Monophonic = true
 
@@ -63,7 +64,6 @@ func initializeCatnip(container *Container, config catnip.Config) *catnip.Drawer
 	drawer := catnip.NewDrawer(container, config)
 	drawer.SetWidgetStyle(container)
 	drawer.ConnectDestroy(container)
-	drawer.ConnectSizeAllocate(container)
 
 	hID, _ := drawer.ConnectDraw(container)
 	destroyed := false

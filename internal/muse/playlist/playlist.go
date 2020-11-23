@@ -79,7 +79,7 @@ func (pl *Playlist) Add(ix int, before bool, paths ...string) (start, end int) {
 		return ix, ix
 	}
 
-	pl.unsaved = true
+	pl.SetUnsaved()
 
 	if !before {
 		ix++
@@ -97,6 +97,28 @@ func (pl *Playlist) Add(ix int, before bool, paths ...string) (start, end int) {
 	}
 
 	return ix, ix + len(paths)
+}
+
+// Remove removes the tracks with the given indices. The function guarantees
+// that the delete will never touch tracks that didn't have the given indices
+// before removal; it does this by sorting the internal array of ixs.
+func (pl *Playlist) Remove(ixs ...int) {
+	if len(ixs) == 0 {
+		return
+	}
+
+	pl.SetUnsaved()
+
+	// Sort indices from largest to smallest so we could pop the last track off
+	// first to preserve order.
+	sort.Sort(sort.Reverse(sort.IntSlice(ixs)))
+
+	for _, ix := range ixs {
+		// https://github.com/golang/go/wiki/SliceTricks
+		copy(pl.Tracks[ix:], pl.Tracks[ix+1:])   // shift backwards
+		pl.Tracks[len(pl.Tracks)-1] = nil        // nil last
+		pl.Tracks = pl.Tracks[:len(pl.Tracks)-1] // omit last
+	}
 }
 
 // Save saves the playlist. The function might be called in another goroutine.
