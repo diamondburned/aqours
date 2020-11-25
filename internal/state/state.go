@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/diamondburned/aqours/internal/muse/playlist"
 	"github.com/gotk3/gotk3/glib"
@@ -378,7 +379,6 @@ func (s *State) SaveState() {
 	if !s.unsaved {
 		return
 	}
-	s.unsaved = false
 
 	select {
 	case s.saving <- struct{}{}:
@@ -393,6 +393,8 @@ func (s *State) SaveState() {
 		return
 	}
 
+	s.unsaved = false
+
 	go func() {
 		if err := ioutil.WriteFile(stateFile, b, os.ModePerm); err != nil {
 			log.Println("failed to save JSON state:", err)
@@ -400,4 +402,37 @@ func (s *State) SaveState() {
 
 		<-s.saving
 	}()
+}
+
+func (s *State) SaveAll() {
+	b, err := json.Marshal(makeJSONState(s))
+	if err != nil {
+		log.Println("Failed to JSON marshal state:", err)
+		return
+	}
+
+	s.unsaved = false
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	go func() {
+		if err := ioutil.WriteFile(stateFile, b, os.ModePerm); err != nil {
+			log.Println("Failed to save JSON state:", err)
+		}
+		wg.Done()
+	}()
+
+	wg.Add(len(s.playlists))
+
+	for _, pl := range s.playlists {
+		pl.Save(func(err error) {
+			if err != nil {
+				log.Println("Failed to save playlist:", err)
+			}
+			wg.Done()
+		})
+	}
+
+	wg.Wait()
 }

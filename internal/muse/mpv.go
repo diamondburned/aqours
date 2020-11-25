@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -55,7 +56,7 @@ type EventHandler interface {
 var tmpdir = filepath.Join(os.TempDir(), "aqours")
 
 // generateUniqueBits generates a small string of unique-ish characters.
-func generateUniqueBits(prefix string) string {
+func generateUniqueBits() string {
 	randomBits := make([]byte, 2)
 	rand.Read(randomBits)
 
@@ -65,11 +66,11 @@ func generateUniqueBits(prefix string) string {
 
 	nanob64 := base64.RawURLEncoding.EncodeToString(nanoBits)
 	randb64 := base64.RawURLEncoding.EncodeToString(randomBits)
-	return prefix + nanob64 + randb64
+	return nanob64 + randb64
 }
 
 func generateMpvSock() string {
-	return filepath.Join(tmpdir, "mpv", generateUniqueBits("socket-")+".sock")
+	return filepath.Join(tmpdir, "mpv", generateUniqueBits()+".sock")
 }
 
 func newMpv() (*Session, error) {
@@ -124,6 +125,8 @@ RetryOpen:
 		return nil, errors.Wrap(err, "failed to open connection")
 	}
 
+	log.Println("Connection established at", sockPath)
+
 	for _, event := range events {
 		_, err := conn.Call("enable_event", event)
 		if err != nil {
@@ -138,12 +141,15 @@ RetryOpen:
 		}
 	}
 
+	l, _ := conn.Get("audio-device")
+	fmt.Println("Audio device list:", l)
+
 	return &Session{
 		Playback:     conn,
 		Command:      cmd,
 		socketPath:   sockPath,
 		eventChannel: make(chan *mpvipc.Event, 8),
-		stopEvent:    make(chan struct{}, 1),
+		stopEvent:    make(chan struct{}),
 	}, nil
 }
 
@@ -217,13 +223,31 @@ func (s *Session) Start() {
 	}()
 }
 
+// Stop stops the mpv session. It does nothing if it's called more than once. A
+// stopped session cannot be reused.
 func (s *Session) Stop() {
-	s.Command.Process.Signal(os.Interrupt)
+	select {
+	case <-s.stopEvent:
+		return
+	default:
+		close(s.stopEvent)
+	}
 
 	s.Playback.Close()
-	s.stopEvent <- struct{}{}
 
-	s.Command.Wait()
+	if err := s.Command.Process.Signal(os.Interrupt); err != nil {
+		log.Println("Attempted to send SIGINT failed, error occured:", err)
+		log.Println("Killing anyway.")
 
-	os.Remove(s.socketPath)
+		if err = s.Command.Process.Kill(); err != nil {
+			log.Println("Failed to kill mpv:", err)
+		}
+	} else {
+		// Wait for mpv to finish up.
+		s.Command.Wait()
+	}
+
+	if err := os.Remove(s.socketPath); err != nil {
+		log.Println("Failed to clean up socket:", err)
+	}
 }

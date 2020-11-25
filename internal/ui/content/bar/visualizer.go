@@ -16,7 +16,7 @@ import (
 
 // FrameRate is the frame rate for the visualizer. The higher it is, the less
 // accurate the visualization is.
-const FrameRate = 60
+const FrameRate = 50
 
 type Visualizer struct {
 	*Container
@@ -77,15 +77,15 @@ func initializeCatnip(container *Container, config catnip.Config) *catnip.Drawer
 			log.Println("failed to start catnip:", err)
 		}
 
+		// This function can be called multiple times, so whatever.
+		drawer.Stop()
+
 		glib.IdleAdd(func() {
 			// We should only disconnect if the container is not destroyed.
 			if !destroyed {
 				container.HandlerDisconnect(hID)
 			}
 		})
-
-		// This function can be called multiple times, so whatever.
-		drawer.Stop()
 	}()
 
 	return drawer

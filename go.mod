@@ -2,7 +2,7 @@ module github.com/diamondburned/aqours
 
 go 1.15
 
-replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20201122055630-6008556661ea
+replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20201125221322-4028816f3fce
 
 replace github.com/noriah/catnip => github.com/diamondburned/tavis v0.0.0-20201107024128-229ebc1a9c2b
 
