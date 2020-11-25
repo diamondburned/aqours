@@ -1,10 +1,10 @@
 package sidebar
 
 import (
+	"io"
 	"log"
-	"strings"
 
-	"github.com/diamondburned/aqours/internal/muse/playlist"
+	"github.com/diamondburned/aqours/internal/muse/albumart"
 	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui/css"
 	"github.com/gotk3/gotk3/gdk"
@@ -56,22 +56,14 @@ func (aa *AlbumArt) SetTrack(track *state.Track) {
 	aa.Path = track.Filepath
 
 	go func() {
-		a, err := playlist.AlbumArt(track.Filepath)
-		if a == nil {
-			if err != nil {
-				log.Println("Failed to get album art:", err)
-			}
+		var f = albumart.AlbumArt(track.Filepath)
+		if !f.IsValid() {
 			return
 		}
 
-		// We need to do this to make GdkPixbufLoader happy.
-		a.Ext = strings.ToLower(a.Ext)
+		defer f.Close()
 
-		if a.Ext == "jpg" {
-			a.Ext = "jpeg"
-		}
-
-		l, err := gdk.PixbufLoaderNewWithType(a.Ext)
+		l, err := gdk.PixbufLoaderNewWithType(f.Extension)
 		if err != nil {
 			log.Println("PixbufLoaderNewWithType failed with jpeg:", err)
 			return
@@ -82,9 +74,15 @@ func (aa *AlbumArt) SetTrack(track *state.Track) {
 			l.SetSize(MaxSize(w, h, AlbumArtSize, AlbumArtSize))
 		})
 
-		p, err := l.WriteAndReturnPixbuf(a.Data)
+		if _, err := io.Copy(l, f.ReadCloser); err != nil {
+			log.Println("Failed to write to pixbuf:", err)
+			return
+		}
+
+		p, err := l.GetPixbuf()
 		if err != nil {
-			log.Println("Failed to write to puxbuf:", err)
+			log.Println("Failed to get pixbuf:", err)
+			// Allow setting a nil pixbuf if we have an error.
 		}
 
 		glib.IdleAdd(func() {

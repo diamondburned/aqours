@@ -1,14 +1,11 @@
 package playlist
 
 import (
-	"os"
 	"path/filepath"
 	"strconv"
 	"time"
 
-	"github.com/dhowden/tag"
 	"github.com/diamondburned/aqours/internal/muse/metadata/ffprobe"
-	"github.com/pkg/errors"
 )
 
 type Track struct {
@@ -21,26 +18,6 @@ type Track struct {
 	Number  int
 	Length  time.Duration
 	Bitrate int
-}
-
-// AlbumArt queries for an album art and read everything INTO MEMORY! It returns
-// nil both values if there is no album art.
-func AlbumArt(filepath string) (*tag.Picture, error) {
-	f, err := os.Open(filepath)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to open file")
-	}
-	defer f.Close()
-
-	// Use a 1 minute timeout.
-	f.SetDeadline(time.Now().Add(time.Minute))
-
-	m, err := tag.ReadFrom(f)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to read tag")
-	}
-
-	return m.Picture(), nil
 }
 
 // IsProbed returns true if the track is probed.

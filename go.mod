@@ -14,7 +14,6 @@ require (
 	github.com/diamondburned/handy v0.0.0-20200829011954-4667e7a918f4
 	github.com/go-test/deep v1.0.7
 	github.com/gotk3/gotk3 v0.5.1-0.20201028052159-952547abf55a
-	github.com/mdempsky/maligned v0.0.0-20201101000000-d73c43cb16d0 // indirect
 	github.com/noriah/catnip v1.0.1-0.20201104094429-58c624d9af1f
 	github.com/pkg/errors v0.9.1
 	github.com/ushis/m3u v0.0.0-20150127162843-94396b784733

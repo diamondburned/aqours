@@ -68,10 +68,6 @@ func generateUniqueBits(prefix string) string {
 	return prefix + nanob64 + randb64
 }
 
-func generateImageOutDir() string {
-	return filepath.Join(tmpdir, "mpv", generateUniqueBits("image-"))
-}
-
 func generateMpvSock() string {
 	return filepath.Join(tmpdir, "mpv", generateUniqueBits("socket-")+".sock")
 }
@@ -95,7 +91,6 @@ func newMpv() (*Session, error) {
 		// mpv's vo/image backend is a disappointment.
 	)
 
-	cmd.Stdout = nil
 	cmd.Stderr = os.Stderr
 
 	conn := mpvipc.NewConnection(sockPath)

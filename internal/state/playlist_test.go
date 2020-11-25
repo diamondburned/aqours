@@ -2,7 +2,6 @@ package state
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -130,7 +129,9 @@ func testRunPlaylistTests(t *testing.T, tests []playlistTest) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			pl := Playlist{}
+			pl := Playlist{
+				state: &State{metadata: make(metadataMap)},
+			}
 			test.apply(t, &pl)
 
 			if !pl.IsUnsaved() {
@@ -163,7 +164,6 @@ func emptyTracks(paths ...string) []*Track {
 	var tracks = make([]*Track, len(paths))
 	for i, path := range paths {
 		tracks[i] = &Track{
-			Title:    filepath.Base(path),
 			Filepath: path,
 		}
 	}
