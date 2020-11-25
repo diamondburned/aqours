@@ -34,7 +34,7 @@ func Parse(path string) (*playlist.Playlist, error) {
 	var pl = playlist.Playlist{
 		Name:   basename(path),
 		Path:   path,
-		Tracks: make([]*playlist.Track, len(p)),
+		Tracks: make([]playlist.Track, len(p)),
 	}
 
 	for i, track := range p {
@@ -46,7 +46,7 @@ func Parse(path string) (*playlist.Playlist, error) {
 			continue
 		}
 
-		pl.Tracks[i] = &playlist.Track{
+		pl.Tracks[i] = playlist.Track{
 			Title:    title,
 			Length:   time.Duration(track.Time) * time.Second,
 			Filepath: track.Path,

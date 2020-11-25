@@ -6,7 +6,6 @@ import (
 
 	"github.com/diamondburned/aqours/internal/muse"
 	"github.com/diamondburned/aqours/internal/muse/metadata/ffmpeg"
-	"github.com/diamondburned/aqours/internal/muse/playlist"
 	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui"
 	"github.com/diamondburned/handy"
@@ -49,31 +48,22 @@ func main() {
 		app.AddWindow(w)
 
 		// Try to save the state and all playlists every 30 seconds.
-		glib.TimeoutAdd(30*1000, func() bool {
-			st.Save()
-			savePlaylists(st.Playlists())
+		saveID, _ := glib.TimeoutAdd(30*1000, func() bool {
+			st.SaveState()
+			w.SaveAllPlaylists()
 			return true
 		})
 
 		w.Connect("destroy", func() {
+			glib.SourceRemove(saveID) // remove callback before retrying
 			ses.Stop()
 			ffmpeg.StopAll()
-			st.ForceSave()
+			st.SaveState()
+			w.SaveAllPlaylists()
 		})
 	})
 
 	if exitCode := app.Run(os.Args); exitCode > 0 {
 		os.Exit(exitCode)
-	}
-}
-
-func savePlaylists(pl []*playlist.Playlist) {
-	for _, playlist := range pl {
-		playlist.Save(func(err error) {
-			if err == nil {
-				return
-			}
-			log.Printf("failed to periodically save playlist %q: %v\n", playlist.Name, err)
-		})
 	}
 }

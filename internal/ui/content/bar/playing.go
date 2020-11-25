@@ -1,10 +1,10 @@
 package bar
 
 import (
-	"fmt"
 	"html"
+	"strings"
 
-	"github.com/diamondburned/aqours/internal/muse/playlist"
+	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui/css"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
@@ -69,14 +69,29 @@ func (np *NowPlaying) StopPlaying() {
 	np.SubReveal.SetRevealChild(false)
 }
 
-func (np *NowPlaying) SetTrack(track *playlist.Track) {
+func (np *NowPlaying) SetTrack(track *state.Track) {
 	np.SubReveal.SetRevealChild(true)
 
-	// np.Title.SetMarkup(fmt.Sprintf(`<span size="large">%s</span>`, track.Title))
-	np.Title.SetText(track.Title)
+	metadata := track.Metadata()
 
-	np.Subtitle.SetMarkup(fmt.Sprintf(
-		`%s <span alpha="50%%">- %s</span>`,
-		html.EscapeString(track.Artist), html.EscapeString(track.Album),
-	))
+	np.Title.SetText(metadata.Title)
+
+	var markup strings.Builder
+	if metadata.Artist != "" {
+		markup.WriteString(html.EscapeString(metadata.Artist))
+	}
+
+	if metadata.Album != "" {
+		markup.WriteByte(' ')
+		markup.WriteString(`<span alpha="70%%" size="small">`)
+
+		if metadata.Artist != "" {
+			markup.WriteString("- ")
+		}
+
+		markup.WriteString(html.EscapeString(metadata.Album))
+		markup.WriteString("</span>")
+	}
+
+	np.Subtitle.SetMarkup(markup.String())
 }

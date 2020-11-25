@@ -36,6 +36,8 @@ github.com/diamondburned/catnip-gtk v0.0.0-20201108211338-cfadea8afab3 h1:KZtqhF
 github.com/diamondburned/catnip-gtk v0.0.0-20201108211338-cfadea8afab3/go.mod h1:eZF8rwFQWZ30Ahh4X/UmdkuASkzpMF3dN8ttqAvO/eg=
 github.com/diamondburned/catnip-gtk v0.0.0-20201122212449-ee10af9ce34f h1:YNKHCULdmgHNnr+y8/XnMNRbULyloAQlLqs9rv4BrtA=
 github.com/diamondburned/catnip-gtk v0.0.0-20201122212449-ee10af9ce34f/go.mod h1:qJvGTU2SKkzjOJLmGrMuEYiERYTAdDGID+VGWZwqPkY=
+github.com/diamondburned/catnip-gtk v0.0.0-20201123211803-fbbb38709ef7 h1:zqvKyInVg6YlAvY1L9EabW59fzKnbpD5sDZTP4UUlRQ=
+github.com/diamondburned/catnip-gtk v0.0.0-20201123211803-fbbb38709ef7/go.mod h1:qJvGTU2SKkzjOJLmGrMuEYiERYTAdDGID+VGWZwqPkY=
 github.com/diamondburned/gotk3 v0.0.0-20201110221530-93d1ff0ce221 h1:xV00/XfwBAog+zW0C2zRSCOYksasgv/pZ3/DqZ0dmsg=
 github.com/diamondburned/gotk3 v0.0.0-20201110221530-93d1ff0ce221/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
 github.com/diamondburned/gotk3 v0.0.0-20201118204331-d67be99f4429 h1:mVIdQ/HAI811sf+PjOJETuayN6uGeJAVzmOyqCzXLgE=

@@ -1,8 +1,8 @@
 package playlist
 
 import (
-	"math/rand"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -11,29 +11,43 @@ import (
 	"github.com/pkg/errors"
 )
 
-// ShuffleTracks shuffles the given list of tracks.
-func ShuffleTracks(tracks []*Track) {
-	rand.Shuffle(len(tracks), func(i, j int) {
-		tracks[i], tracks[j] = tracks[j], tracks[i]
-	})
-}
-
 type Track struct {
 	Title  string
 	Artist string
 	Album  string
 
-	Filepath string
+	Filepath string `json:",omitempty"`
 
 	Number  int
 	Length  time.Duration
 	Bitrate int
 }
 
+// AlbumArt queries for an album art and read everything INTO MEMORY! It returns
+// nil both values if there is no album art.
+func AlbumArt(filepath string) (*tag.Picture, error) {
+	f, err := os.Open(filepath)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to open file")
+	}
+	defer f.Close()
+
+	// Use a 1 minute timeout.
+	f.SetDeadline(time.Now().Add(time.Minute))
+
+	m, err := tag.ReadFrom(f)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read tag")
+	}
+
+	return m.Picture(), nil
+}
+
 // IsProbed returns true if the track is probed.
-func (t *Track) IsProbed() bool {
-	return false ||
-		(t.Bitrate > 0 && t.Length > 0) ||
+func (t Track) IsProbed() bool {
+	// We'd maybe want to try and probe all the time.
+	return true &&
+		(t.Bitrate > 0 && t.Length > 0) &&
 		(t.Title != "" && t.Artist != "" && t.Album != "")
 }
 
@@ -48,6 +62,9 @@ func (t *Track) Probe() error {
 func (t *Track) ForceProbe() error {
 	p, err := ffprobe.Probe(t.Filepath)
 	if err != nil {
+		// We can still reset the title and try to guess it. We might want to do
+		// this if the playlist file has invalid titles.
+		t.Title = TitleFromPath(t.Filepath)
 		return err
 	}
 
@@ -64,24 +81,15 @@ func (t *Track) ForceProbe() error {
 	return nil
 }
 
-// AlbumArt queries for an album art and read everything INTO MEMORY! It returns
-// nil both values if there is no album art.
-func (t *Track) AlbumArt() (*tag.Picture, error) {
-	f, err := os.Open(t.Filepath)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to open file")
-	}
-	defer f.Close()
+// TitleFromPath grabs the file basename from the given path, which could be
+// used as a title placeholder.
+func TitleFromPath(path string) string {
+	return trimExt(filepath.Base(path))
+}
 
-	// Use a 1 minute timeout.
-	f.SetDeadline(time.Now().Add(time.Minute))
-
-	m, err := tag.ReadFrom(f)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to read tag")
-	}
-
-	return m.Picture(), nil
+func trimExt(name string) string {
+	ext := filepath.Ext(name)
+	return name[:len(name)-len(ext)]
 }
 
 func stringOr(str, or string) string {

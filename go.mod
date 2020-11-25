@@ -10,7 +10,7 @@ require (
 	github.com/DexterLB/mpvipc v0.0.0-20190216161438-2a226fa01bbd
 	github.com/dhowden/tag v0.0.0-20200828214007-46e57f75dbfc
 	github.com/diamondburned/audpl v0.0.0-20201107052523-20d1b6c126e7
-	github.com/diamondburned/catnip-gtk v0.0.0-20201122212449-ee10af9ce34f
+	github.com/diamondburned/catnip-gtk v0.0.0-20201123211803-fbbb38709ef7
 	github.com/diamondburned/handy v0.0.0-20200829011954-4667e7a918f4
 	github.com/go-test/deep v1.0.7
 	github.com/gotk3/gotk3 v0.5.1-0.20201028052159-952547abf55a

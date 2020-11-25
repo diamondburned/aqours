@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/diamondburned/aqours/internal/muse/playlist"
+	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gtk"
 )
@@ -18,7 +18,8 @@ type ParentController interface {
 	// ParentPlaylistController methods.
 	GoBack()
 	HasPlaylist(name string) bool
-	RenamePlaylist(pl *playlist.Playlist, newName string) bool
+	SavePlaylist(pl *state.Playlist)
+	RenamePlaylist(pl *state.Playlist, newName string) bool
 }
 
 type Container struct {
@@ -32,7 +33,7 @@ type Container struct {
 	Bitrate   *gtk.Label
 	Right     *PlaylistControls
 
-	current *playlist.Playlist
+	current *state.Playlist
 }
 
 func NewContainer(parent ParentController) *Container {
@@ -92,11 +93,15 @@ func (c *Container) SetBitrate(bits float64) {
 	))
 }
 
-func (c *Container) SetUnsaved(unsaved bool) {
-	c.Info.SetUnsaved(unsaved)
+// SetUnsaved sets the header info to display the name as unchanged if the
+// given playlist is indeed being displayed. It does nothing otherwise.
+func (c *Container) SetUnsaved(pl *state.Playlist) {
+	if pl == c.current {
+		c.Info.SetUnsaved(pl.IsUnsaved())
+	}
 }
 
-func (c *Container) SetPlaylist(pl *playlist.Playlist) {
+func (c *Container) SetPlaylist(pl *state.Playlist) {
 	c.current = pl
 
 	if pl != nil {
@@ -108,8 +113,8 @@ func (c *Container) SetPlaylist(pl *playlist.Playlist) {
 	}
 }
 
-func (c *Container) CurrentPlaylist() *playlist.Playlist {
-	return c.current
+func (c *Container) SaveCurrentPlaylist() {
+	c.SavePlaylist(c.current)
 }
 
 // RenamePlaylist calls the parent's RenamePlaylist with the current name.

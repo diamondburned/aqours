@@ -3,7 +3,7 @@ package sidebar
 import (
 	"fmt"
 
-	"github.com/diamondburned/aqours/internal/muse/playlist"
+	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui/css"
 	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gtk"
@@ -38,7 +38,7 @@ func NewPlaylistList(parent ParentController) *PlaylistList {
 	return list
 }
 
-func (l *PlaylistList) AddPlaylist(pl *playlist.Playlist) *Playlist {
+func (l *PlaylistList) AddPlaylist(pl *state.Playlist) *Playlist {
 	for _, playlist := range l.Playlists {
 		if playlist.Name == pl.Name {
 			return playlist
@@ -52,11 +52,25 @@ func (l *PlaylistList) AddPlaylist(pl *playlist.Playlist) *Playlist {
 	return playlist
 }
 
+// SelectFirstPlaylist selects the first playlist. It does nothing if there are
+// no playlists.
+func (l *PlaylistList) SelectFirstPlaylist() {
+	if len(l.Playlists) > 0 {
+		l.SelectPlaylist(l.Playlists[0])
+	}
+}
+
 // SelectPlaylist selects the given playlist.
 func (l *PlaylistList) SelectPlaylist(pl *Playlist) {
 	l.SelectRow(&pl.ListBoxRow)
 	pl.Activate()
 	l.parent.SelectPlaylist(pl.Name)
+}
+
+func (l *PlaylistList) SetUnsaved(pl *state.Playlist) {
+	if p := l.Playlist(pl.Name); p != nil {
+		p.SetUnsaved(pl.IsUnsaved())
+	}
 }
 
 func (l *PlaylistList) Playlist(name string) *Playlist {
@@ -84,6 +98,14 @@ func NewPlaylist(name string, total int) *Playlist {
 	pl.SetTotal(total)
 
 	return pl
+}
+
+func (pl *Playlist) SetUnsaved(unsaved bool) {
+	if !unsaved {
+		pl.SetTitle(pl.Name)
+	} else {
+		pl.SetTitle(pl.Name + " ●")
+	}
 }
 
 func (pl *Playlist) SetName(name string) {

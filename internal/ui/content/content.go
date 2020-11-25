@@ -12,14 +12,14 @@ type ParentController interface {
 }
 
 type Container struct {
-	gtk.Box
+	ContentBox *gtk.Box
 
 	Body *body.Container
 	Bar  *bar.Container
 	Vis  *bar.Visualizer
 }
 
-func NewContainer(parent ParentController) *Container {
+func NewContainer(parent ParentController) Container {
 	body := body.NewContainer(parent)
 	body.Show()
 
@@ -36,10 +36,10 @@ func NewContainer(parent ParentController) *Container {
 	box.SetHExpand(true)
 	box.Show()
 
-	return &Container{
-		Box:  *box,
-		Body: body,
-		Bar:  vis.Container,
-		Vis:  vis,
+	return Container{
+		ContentBox: box,
+		Body:       body,
+		Bar:        vis.Container,
+		Vis:        vis,
 	}
 }

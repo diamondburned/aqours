@@ -33,9 +33,9 @@ const maxErrorThreshold = 3
 
 type MainWindow struct {
 	gtk.ApplicationWindow
+	content.Container
 
-	Header  *header.Container
-	Content *content.Container
+	Header *header.Container
 
 	muse  *muse.Session
 	state *state.State
@@ -63,10 +63,8 @@ func NewMainWindow(a *gtk.Application, session *muse.Session) (*MainWindow, erro
 
 	w.SetTitlebar(mw.Header)
 
-	mw.Content = content.NewContainer(mw)
-	mw.Content.Show()
-
-	w.Add(mw.Content)
+	mw.Container = content.NewContainer(mw)
+	w.Add(mw.ContentBox)
 
 	session.SetHandler(mw)
 
@@ -78,23 +76,29 @@ func (w *MainWindow) UseState(s *state.State) {
 	w.state = s
 
 	// Restore the state.
-	w.Content.Bar.Controls.Buttons.SetRepeat(w.state.RepeatMode(), false)
-	w.Content.Bar.Controls.Buttons.SetShuffle(w.state.IsShuffling())
+	w.Bar.Controls.Buttons.SetRepeat(w.state.RepeatMode(), false)
+	w.Bar.Controls.Buttons.SetShuffle(w.state.IsShuffling())
 
-	for _, p := range w.state.Playlists() {
-		uiPl := w.Content.Body.Sidebar.PlaylistList.AddPlaylist(p)
+	var selected bool
 
-		if p.Name == w.state.PlayingPlaylistName() {
-			w.Content.Body.Sidebar.PlaylistList.SelectPlaylist(uiPl)
+	for _, name := range w.state.PlaylistNames() {
+		playlist, _ := w.state.Playlist(name)
+		uiPl := w.Body.Sidebar.PlaylistList.AddPlaylist(playlist)
+
+		if name == w.state.PlayingPlaylistName() {
+			w.Body.Sidebar.PlaylistList.SelectPlaylist(uiPl)
+			selected = true
 		}
+	}
+
+	if !selected {
+		w.Body.Sidebar.PlaylistList.SelectFirstPlaylist()
 	}
 }
 
-func (w *MainWindow) GoBack() { w.Content.Body.SwipeBack() }
+func (w *MainWindow) GoBack() { w.Body.SwipeBack() }
 
 func (w *MainWindow) OnSongFinish(err error) {
-	log.Println("song finished:", err)
-
 	if err != nil {
 		w.errCounter++
 
@@ -113,17 +117,14 @@ func (w *MainWindow) OnSongFinish(err error) {
 	// Play the next song.
 	track := w.state.AutoNext()
 	if track != nil {
-		log.Println("playing track", track.Title)
 		w.playTrack(track)
 		return
 	}
-
-	log.Println("nil track")
 }
 
 func (w *MainWindow) OnPauseUpdate(pause bool) {
-	w.Content.Vis.Drawer.SetPaused(pause)
-	w.Content.Bar.Controls.Buttons.Play.SetPlaying(!pause)
+	w.Vis.Drawer.SetPaused(pause)
+	w.Bar.Controls.Buttons.Play.SetPlaying(!pause)
 
 	if pause {
 		w.Header.SetBitrate(-1)
@@ -135,7 +136,7 @@ func (w *MainWindow) OnBitrateChange(bitrate float64) {
 }
 
 func (w *MainWindow) OnPositionChange(pos, total float64) {
-	w.Content.Bar.Controls.Seek.UpdatePosition(pos, total)
+	w.Bar.Controls.Seek.UpdatePosition(pos, total)
 }
 
 func (w *MainWindow) AddPlaylist(path string) {
@@ -168,8 +169,8 @@ func (w *MainWindow) AddPlaylist(path string) {
 				}
 			}
 
-			w.Content.Body.Sidebar.PlaylistList.AddPlaylist(p)
-			w.state.AddPlaylist(p)
+			playlist := w.state.AddPlaylist(p)
+			w.Body.Sidebar.PlaylistList.AddPlaylist(playlist)
 		})
 	}()
 }
@@ -179,9 +180,32 @@ func (w *MainWindow) HasPlaylist(name string) bool {
 	return ok
 }
 
+func (w *MainWindow) SaveAllPlaylists() {
+	for _, name := range w.state.PlaylistNames() {
+		pl, _ := w.state.Playlist(name)
+		w.SavePlaylist(pl)
+	}
+}
+
+func (w *MainWindow) SavePlaylist(pl *state.Playlist) {
+	refresh := func() {
+		w.Header.SetUnsaved(pl)
+		w.Body.Sidebar.PlaylistList.SetUnsaved(pl)
+	}
+	// Visually indicate the saved status.
+	refresh()
+
+	pl.Save(func(err error) {
+		glib.IdleAdd(refresh)
+		if err != nil {
+			log.Println("failed to save playlist:", err)
+		}
+	})
+}
+
 // RenamePlaylist renames a playlist. It only works if we're renaming the
 // current playlist.
-func (w *MainWindow) RenamePlaylist(pl *playlist.Playlist, newName string) bool {
+func (w *MainWindow) RenamePlaylist(pl *state.Playlist, newName string) bool {
 	// Collision check.
 	if _, exists := w.state.Playlist(newName); exists {
 		return false
@@ -191,8 +215,8 @@ func (w *MainWindow) RenamePlaylist(pl *playlist.Playlist, newName string) bool 
 	pl.Name = newName
 	w.state.RenamePlaylist(pl, plName)
 
-	w.Content.Body.TracksView.DeletePlaylist(plName)
-	w.Content.Body.Sidebar.PlaylistList.Playlist(plName).SetName(newName)
+	w.Body.TracksView.DeletePlaylist(plName)
+	w.Body.Sidebar.PlaylistList.Playlist(plName).SetName(newName)
 	w.SelectPlaylist(newName)
 
 	return true
@@ -228,15 +252,15 @@ func (w *MainWindow) SetPlay(playing bool) {
 
 func (w *MainWindow) SetShuffle(shuffle bool) {
 	w.state.SetShuffling(shuffle)
-	w.Content.Bar.Controls.Buttons.SetShuffle(shuffle)
+	w.Bar.Controls.Buttons.SetShuffle(shuffle)
 }
 
 func (w *MainWindow) SetRepeat(mode state.RepeatMode) {
 	w.state.SetRepeatMode(mode)
-	w.Content.Bar.Controls.Buttons.SetRepeat(mode, false)
+	w.Bar.Controls.Buttons.SetRepeat(mode, false)
 }
 
-func (w *MainWindow) PlayTrack(playlist *playlist.Playlist, n int) {
+func (w *MainWindow) PlayTrack(playlist *state.Playlist, n int) {
 	// Change the playing playlist if needed.
 	if w.state.PlayingPlaylistName() != playlist.Name {
 		w.state.SetPlayingPlaylist(playlist)
@@ -245,16 +269,18 @@ func (w *MainWindow) PlayTrack(playlist *playlist.Playlist, n int) {
 	w.playTrack(w.state.Play(n))
 }
 
-func (w *MainWindow) UpdateTracks(playlist *playlist.Playlist) {
+func (w *MainWindow) UpdateTracks(playlist *state.Playlist) {
 	// If we've updated the current playlist, then we should also refresh the
 	// play queue.
 	if w.state.PlayingPlaylist() == playlist {
 		w.state.RefreshQueue()
-		w.Header.Info.SetUnsaved(playlist.IsUnsaved())
 	}
+
+	w.Header.SetUnsaved(playlist)
+	w.Body.Sidebar.PlaylistList.SetUnsaved(playlist)
 }
 
-func (w *MainWindow) playTrack(track *playlist.Track) {
+func (w *MainWindow) playTrack(track *state.Track) {
 	if err := w.muse.PlayTrack(track.Filepath); err != nil {
 		log.Println("PlayTrack failed:", err)
 		return
@@ -262,12 +288,12 @@ func (w *MainWindow) playTrack(track *playlist.Track) {
 
 	playing := w.state.PlayingPlaylist()
 
-	trackList, ok := w.Content.Body.TracksView.Lists[playing.Name]
+	trackList, ok := w.Body.TracksView.Lists[playing.Name]
 	assert(ok, "track list not found from name: "+playing.Name)
 
 	trackList.SetPlaying(track)
-	w.Content.Bar.NowPlaying.SetTrack(track)
-	w.Content.Body.Sidebar.AlbumArt.SetTrack(track)
+	w.Bar.NowPlaying.SetTrack(track)
+	w.Body.Sidebar.AlbumArt.SetTrack(track)
 }
 
 func (w *MainWindow) SelectPlaylist(name string) {
@@ -279,7 +305,7 @@ func (w *MainWindow) SelectPlaylist(name string) {
 
 	// Don't change the state's playing playlist.
 
-	w.Content.Body.TracksView.SelectPlaylist(pl)
+	w.Body.TracksView.SelectPlaylist(pl)
 	w.Header.SetPlaylist(pl)
 	w.SetTitle(fmt.Sprintf("%s - Aqours", pl.Name))
 }

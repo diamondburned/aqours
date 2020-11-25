@@ -35,7 +35,7 @@ func Parse(path string) (*playlist.Playlist, error) {
 	var playlistCopy = playlist.Playlist{
 		Name:   p.Name,
 		Path:   path,
-		Tracks: make([]*playlist.Track, 0, len(p.Tracks)),
+		Tracks: make([]playlist.Track, 0, len(p.Tracks)),
 	}
 
 	for _, track := range p.Tracks {
@@ -50,7 +50,7 @@ func Parse(path string) (*playlist.Playlist, error) {
 		lengthMs, _ := strconv.Atoi(track.Length)
 		bitrateKbit, _ := strconv.Atoi(track.Bitrate)
 
-		playlistCopy.Tracks = append(playlistCopy.Tracks, &playlist.Track{
+		playlistCopy.Tracks = append(playlistCopy.Tracks, playlist.Track{
 			Title:    track.Title,
 			Artist:   track.Artist,
 			Album:    track.Album,

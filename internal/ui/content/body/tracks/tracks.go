@@ -2,14 +2,14 @@ package tracks
 
 import (
 	"github.com/diamondburned/aqours/internal/durafmt"
-	"github.com/diamondburned/aqours/internal/muse/playlist"
+	"github.com/diamondburned/aqours/internal/state"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
 )
 
 type ParentController interface {
-	PlayTrack(p *playlist.Playlist, index int)
-	UpdateTracks(p *playlist.Playlist)
+	PlayTrack(p *state.Playlist, index int)
+	UpdateTracks(p *state.Playlist)
 }
 
 type ListStorer interface {
@@ -50,7 +50,7 @@ func NewContainer(parent ParentController) *Container {
 	}
 }
 
-func (c *Container) SelectPlaylist(playlist *playlist.Playlist) *TrackList {
+func (c *Container) SelectPlaylist(playlist *state.Playlist) *TrackList {
 	pl, ok := c.Lists[playlist.Name]
 	if !ok {
 		pl = NewTrackList(c.parent, playlist)
@@ -110,11 +110,19 @@ func (row *TrackRow) SetBold(store ListStorer, bold bool) {
 	store.SetValue(row.Iter, columnSelected, weight(row.Bold))
 }
 
-func (row *TrackRow) setListStore(t *playlist.Track, store ListStorer) {
+func (row *TrackRow) setListStore(t *state.Track, store ListStorer) {
+	metadata := t.Metadata()
+
 	store.Set(
 		row.Iter,
 		[]int{columnTitle, columnArtist, columnAlbum, columnTime, columnSelected},
-		[]interface{}{t.Title, t.Artist, t.Album, durafmt.Format(t.Length), weight(row.Bold)},
+		[]interface{}{
+			metadata.Title,
+			metadata.Artist,
+			metadata.Album,
+			durafmt.Format(metadata.Length),
+			weight(row.Bold),
+		},
 	)
 }
 

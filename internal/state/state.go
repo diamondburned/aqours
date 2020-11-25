@@ -37,75 +37,38 @@ func failIf(b bool, e string) {
 }
 
 type State struct {
-	state jsonState
+	metadata      metadataMap `json:"metadata"`
+	playlistNames []PlaylistName
+	playlists     map[PlaylistName]*Playlist
 
 	playing struct {
-		Playlist  *playlist.Playlist
-		PlayQueue []*playlist.Track
-		QueuePos  int
+		Playlist *Playlist
+		Queue    []int // list of indices to playlists[playing.Playlist]
+		QueuePos int   // relative to Queue
 	}
 
-	saving chan struct{}
-}
+	shuffling bool       `json:"shuffling"`
+	repeating RepeatMode `json:"repeating"`
 
-type jsonState struct {
-	Playlists []*playlist.Playlist `json:"playlists"`
-
-	PlayingPlaylist string `json:"playing_playlist"`   // playlist name
-	PlayingSongPath string `json:"playing_song_index"` // song path
-
-	Shuffling bool       `json:"shuffling"`
-	Repeating RepeatMode `json:"repeating"`
+	saving  chan struct{}
+	unsaved bool
 }
 
 func NewState() *State {
 	return &State{
-		saving: make(chan struct{}, 1),
-		state:  jsonState{},
+		saving:    make(chan struct{}, 1),
+		metadata:  make(metadataMap),
+		playlists: make(map[PlaylistName]*Playlist),
 	}
 }
 
 func ReadFromFile() (*State, error) {
-	b, err := ioutil.ReadFile(stateFile)
+	s, err := fileJSONState(stateFile)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read state file")
 	}
 
-	return UnmarshalState(b)
-}
-
-func UnmarshalState(jsonBytes []byte) (*State, error) {
-	var state = NewState()
-
-	if err := json.Unmarshal(jsonBytes, &state.state); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal state JSON")
-	}
-
-	// See if we were on any current playlist.
-	if state.state.PlayingPlaylist != "" {
-		playlist, ok := state.Playlist(state.state.PlayingPlaylist)
-		if !ok {
-			// Corrupted state. Ignore and move on.
-			state.state.PlayingPlaylist = ""
-			return state, nil
-		}
-
-		state.SetPlayingPlaylist(playlist)
-
-		// See if we could restore the track as well.
-		if state.state.PlayingSongPath != "" {
-			// Search.
-			i, track := state.trackFromPath(state.state.PlayingSongPath)
-			if track == nil {
-				// Corrupted state. Ignore and move on.
-				state.state.PlayingSongPath = ""
-			} else {
-				state.playing.QueuePos = i
-			}
-		}
-	}
-
-	return state, nil
+	return makeStateFromJSON(s), nil
 }
 
 // RefreshQueue refreshes completely the current play queue.
@@ -116,41 +79,27 @@ func (s *State) RefreshQueue() {
 // assertCoherentState asserts everything in the JSON state with the helper
 // pointers.
 func (s *State) assertCoherentState() {
-	if s.playing.Playlist != nil {
-		failIf(
-			s.playing.Playlist.Name != s.state.PlayingPlaylist,
-			"playing.Playlist.Name is not equal to state's PlayingPlaylist",
-		)
-	}
+	// Nothing left. TODO: refactor this out.
 }
 
 // Playlist returns a playlist, or nil if none. It also returns a boolean to
 // indicate.
-func (s *State) Playlist(name string) (*playlist.Playlist, bool) {
+func (s *State) Playlist(name string) (*Playlist, bool) {
 	s.assertCoherentState()
 
-	if s.playing.Playlist != nil && s.playing.Playlist.Name == name {
-		return s.playing.Playlist, true
-	}
-
-	for _, playlist := range s.state.Playlists {
-		if playlist.Name == name {
-			return playlist, true
-		}
-	}
-
-	return nil, false
+	pl, ok := s.playlists[name]
+	return pl, ok
 }
 
 // PlaylistFromPath returns a playlist, or nil if none.
-func (s *State) PlaylistFromPath(path string) (*playlist.Playlist, bool) {
+func (s *State) PlaylistFromPath(path string) (*Playlist, bool) {
 	s.assertCoherentState()
 
 	if s.playing.Playlist != nil && s.playing.Playlist.Path == path {
 		return s.playing.Playlist, true
 	}
 
-	for _, playlist := range s.state.Playlists {
+	for _, playlist := range s.playlists {
 		if playlist.Path == path {
 			return playlist, true
 		}
@@ -159,37 +108,55 @@ func (s *State) PlaylistFromPath(path string) (*playlist.Playlist, bool) {
 	return nil, false
 }
 
-func (s *State) Playlists() []*playlist.Playlist {
-	return s.state.Playlists
+func (s *State) PlaylistNames() []PlaylistName {
+	return s.playlistNames
 }
 
-func (s *State) RenamePlaylist(p *playlist.Playlist, oldName string) {
-	if oldName == s.state.PlayingPlaylist {
-		s.state.PlayingPlaylist = p.Name
+func (s *State) RenamePlaylist(p *Playlist, oldName string) {
+	pl, ok := s.playlists[oldName]
+	if !ok {
+		return
 	}
+
+	delete(s.playlists, oldName)
+	s.playlists[p.Name] = pl
+
+	for i, name := range s.playlistNames {
+		if name == oldName {
+			s.playlistNames[i] = p.Name
+			break
+		}
+	}
+
+	pl.Name = p.Name
 }
 
 // AddPlaylist adds a playlist. If a playlist with the same name is added, then
 // the function does nothing.
-func (s *State) AddPlaylist(p *playlist.Playlist) {
-	for _, playlist := range s.state.Playlists {
-		if playlist.Name == p.Name {
-			log.Println("Playlist collision while adding:", p.Name)
-			return
-		}
+func (s *State) AddPlaylist(p *playlist.Playlist) *Playlist {
+	if _, ok := s.playlists[p.Name]; ok {
+		log.Println("Playlist collision while adding:", p.Name)
+		return nil
 	}
 
-	s.state.Playlists = append(s.state.Playlists, p)
+	playlist := convertPlaylist(s, p)
+	playlist.unsaved = 1
+
+	s.playlists[p.Name] = playlist
+	s.playlistNames = append(s.playlistNames, p.Name)
+
+	return playlist
 }
 
 // DeletePlaylist deletes the playlist with the given name.
 func (s *State) DeletePlaylist(name string) {
 	// TODO: optimize?
-	for i, playlist := range s.state.Playlists {
-		if playlist.Name == name {
-			s.state.Playlists = append(s.state.Playlists[:i], s.state.Playlists[i+1:]...)
+	for i, playlistName := range s.playlistNames {
+		if playlistName == name {
+			s.playlistNames = append(s.playlistNames[:i], s.playlistNames[i+1:]...)
+			delete(s.playlists, name)
 
-			if playlist.Name == s.playing.Playlist.Name {
+			if name == s.playing.Playlist.Name {
 				s.SetPlayingPlaylist(nil)
 			}
 
@@ -199,24 +166,19 @@ func (s *State) DeletePlaylist(name string) {
 }
 
 // SetPlayingPlaylist sets the playing playlist.
-func (s *State) SetPlayingPlaylist(pl *playlist.Playlist) {
+func (s *State) SetPlayingPlaylist(pl *Playlist) {
 	s.assertCoherentState()
 
 	s.playing.Playlist = pl
-	s.state.PlayingSongPath = "" // always
 
 	if pl == nil {
-		s.state.PlayingPlaylist = ""
-		s.playing.PlayQueue = nil
+		s.playing.Queue = nil
 		return
 	}
 
-	s.state.PlayingPlaylist = pl.Name
-	s.playing.PlayQueue = make([]*playlist.Track, len(pl.Tracks))
-	// Copy all tracks.
-	copy(s.playing.PlayQueue, pl.Tracks)
+	s.ReloadPlayQueue()
 
-	if s.state.Shuffling {
+	if s.shuffling {
 		// Reshuffle.
 		s.SetShuffling(true)
 	}
@@ -226,7 +188,7 @@ func (s *State) SetPlayingPlaylist(pl *playlist.Playlist) {
 // the internal states are inconsistent, which should never happen unless the
 // playlist pointer was illegally changed. If the path were to be changed, then
 // SetCurrentPlaylist should be called again.
-func (s *State) PlayingPlaylist() *playlist.Playlist {
+func (s *State) PlayingPlaylist() *Playlist {
 	// coherency check skipped for performance.
 	return s.playing.Playlist
 }
@@ -236,29 +198,34 @@ func (s *State) PlayingPlaylist() *playlist.Playlist {
 func (s *State) PlayingPlaylistName() string {
 	s.assertCoherentState()
 
-	return s.state.PlayingPlaylist
+	if s.playing.Playlist == nil {
+		return ""
+	}
+
+	return s.playing.Playlist.Name
 }
 
 // NowPlaying returns the currently playing track. If playingPl is nil, then
 // this method returns (-1, nil).
-func (s *State) NowPlaying() (int, *playlist.Track) {
+func (s *State) NowPlaying() (int, *Track) {
 	s.assertCoherentState()
 
 	if s.playing.Playlist == nil {
 		return -1, nil
 	}
 
-	return s.trackFromPath(s.state.PlayingSongPath)
+	ix := s.playing.Queue[s.playing.QueuePos]
+	return ix, s.playing.Playlist.Tracks[ix]
 }
 
 // IsShuffling returns true if the list is being shuffled.
 func (s *State) IsShuffling() bool {
-	return s.state.Shuffling
+	return s.shuffling
 }
 
 // SetShuffling sets the shuffling mode.
 func (s *State) SetShuffling(shuffling bool) {
-	s.state.Shuffling = shuffling
+	s.shuffling = shuffling
 
 	if s.playing.Playlist == nil {
 		return
@@ -267,32 +234,26 @@ func (s *State) SetShuffling(shuffling bool) {
 	s.assertCoherentState()
 
 	if shuffling {
-		playlist.ShuffleTracks(s.playing.PlayQueue)
+		playlist.ShuffleQueue(s.playing.Queue)
 		return
 	}
 
-	copy(s.playing.PlayQueue, s.playing.Playlist.Tracks)
+	// Attempt to renew the QueuePos before changing the queue. As Queue holds a
+	// list of actual track indices, we could use the queue position as the key
+	// to get the actual position, then set that to the queue position.
+	s.playing.QueuePos = s.playing.Queue[s.playing.QueuePos]
 
-	// Attempt to renew the QueuePos.
-	for i, track := range s.playing.PlayQueue {
-		if track.Filepath == s.state.PlayingSongPath {
-			s.playing.QueuePos = i
-			return
-		}
-	}
-
-	// We couldn't find QueuePos for some reason. Reset it to 0.
-	s.playing.QueuePos = 0
+	playlist.ResetQueue(s.playing.Queue)
 }
 
 // RepeatMode returns the current repeat mode.
 func (s *State) RepeatMode() RepeatMode {
-	return s.state.Repeating
+	return s.repeating
 }
 
 // SetRepeatMode sets the current repeat mode.
 func (s *State) SetRepeatMode(mode RepeatMode) {
-	s.state.Repeating = mode
+	s.repeating = mode
 }
 
 // ReloadPlayQueue reloads the internal play queue for the currently playing
@@ -304,95 +265,83 @@ func (s *State) ReloadPlayQueue() {
 		return
 	}
 
-	if newlen := len(s.playing.Playlist.Tracks); newlen != len(s.playing.PlayQueue) {
-		s.playing.PlayQueue = make([]*playlist.Track, newlen)
+	if newlen := len(s.playing.Playlist.Tracks); newlen != len(s.playing.Queue) {
+		s.playing.Queue = make([]int, newlen)
 	}
 
-	copy(s.playing.PlayQueue, s.playing.Playlist.Tracks)
+	playlist.ResetQueue(s.playing.Queue)
 
 	// Restore shuffling.
-	if s.state.Shuffling {
+	if s.shuffling {
 		s.SetShuffling(true)
 	}
 }
 
-// trackFromPath searches from the scratch list.
-func (s *State) trackFromPath(path string) (int, *playlist.Track) {
-	for i, track := range s.playing.PlayQueue {
-		if track.Filepath == path {
-			return i, track
-		}
-	}
-	return -1, nil
-}
+// // trackFromPath searches from the play queue.
+// func (s *State) trackFromPath(path string) (queueIx, plIx int) {
+// 	for i, track := range s.playing.Queue {
+// 		if track.Filepath == path {
+// 			return i, track
+// 		}
+// 	}
+// 	return -1, nil
+// }
 
-func (s *State) nowPlayingTrack() *playlist.Track {
-	return s.playing.PlayQueue[s.playing.QueuePos]
+func (s *State) nowPlayingTrack() *Track {
+	return s.playing.Playlist.Tracks[s.playing.Queue[s.playing.QueuePos]]
 }
 
 // Play plays the track indexed relative to the actual playlist. This does not
 // index relative to the actual play queue, which may be shuffled.
-func (s *State) Play(index int) *playlist.Track {
+func (s *State) Play(index int) *Track {
 	return s.play(index, false)
 }
 
-func (s *State) play(index int, shuffled bool) *playlist.Track {
+func (s *State) play(index int, shuffled bool) *Track {
 	// Ensure that we have an active playing playlist.
 	failIf(s.playing.Playlist == nil, "playing.Playlist is nil while Play is called")
 	// Assert the state after modifying the index.
 	s.assertCoherentState()
 	// Bound check.
 	failIf(index < 0, "index is negative")
-	failIf(index >= len(s.playing.PlayQueue), "given index is out of bounds in Play")
+	failIf(index >= len(s.playing.Queue), "given index is out of bounds in Play")
 
-	var track *playlist.Track
-	// TODO: watch for inconsistencies.
-	if shuffled {
-		track = s.playing.PlayQueue[index]
-	} else {
-		track = s.playing.Playlist.Tracks[index]
-	}
-
+	queueIx := s.playing.Queue[index]
 	s.playing.QueuePos = index
-	s.state.PlayingSongPath = track.Filepath
 
-	return track
+	return s.playing.Playlist.Tracks[queueIx]
 }
 
 // Previous returns the previous track, similarly to Next. Nil is returned if
 // there is no previous track. If shuffling mode is on, then Prev will not
 // return the previous track.
-func (s *State) Previous() *playlist.Track {
+func (s *State) Previous() *Track {
 	return s.move(false, true)
 }
 
 // Next returns the next track from the currently playing playlist. Nil is
 // returned if there is no next track.
-func (s *State) Next() *playlist.Track {
+func (s *State) Next() *Track {
 	return s.move(true, true)
 }
 
 // AutoNext returns the next track, unless we're in RepeatSingle mode, then it
 // returns the same track. Use this to cycle across the playlist.
-func (s *State) AutoNext() *playlist.Track {
+func (s *State) AutoNext() *Track {
 	return s.move(true, false)
 }
 
 // move is an abstracted function used by Prev, Next and AutoNext.
-func (s *State) move(forward, force bool) *playlist.Track {
+func (s *State) move(forward, force bool) *Track {
 	s.assertCoherentState()
 
-	if s.playing.Playlist == nil {
-		return nil
-	}
-
-	if !force && s.state.Repeating == RepeatSingle {
+	if !force && s.repeating == RepeatSingle {
 		return s.nowPlayingTrack()
 	}
 
-	next, oob := spinIndex(forward, s.playing.QueuePos, len(s.playing.PlayQueue))
+	next, oob := spinIndex(forward, s.playing.QueuePos, len(s.playing.Queue))
 
-	if oob && s.state.Repeating == RepeatNone {
+	if oob && s.repeating == RepeatNone {
 		return nil
 	}
 
@@ -419,25 +368,28 @@ func spinIndex(fwd bool, i, max int) (int, bool) {
 	return i, false
 }
 
-// Save saves the state. It is non-blocking, but the JSON is marshaled in the
-// same thread as the caller.
-func (s *State) Save() {
+// SaveState saves the state. It is non-blocking, but the JSON is marshaled in
+// the same thread as the caller.
+func (s *State) SaveState() {
 	if stateDir == "" {
 		return
 	}
 
-	// TODO: ignore if not mutated.
-
-	b, err := json.Marshal(s.state)
-	if err != nil {
-		log.Println("failed to JSON marshal state:", err)
+	if !s.unsaved {
 		return
 	}
+	s.unsaved = false
 
 	select {
 	case s.saving <- struct{}{}:
 		// success
 	default:
+		return
+	}
+
+	b, err := json.Marshal(makeJSONState(s))
+	if err != nil {
+		log.Println("failed to JSON marshal state:", err)
 		return
 	}
 
@@ -448,17 +400,4 @@ func (s *State) Save() {
 
 		<-s.saving
 	}()
-}
-
-// ForceSave forces the state to be saved synchronously.
-func (s *State) ForceSave() {
-	b, err := json.Marshal(s.state)
-	if err != nil {
-		log.Println("failed to JSON marshal state:", err)
-		return
-	}
-
-	if err := ioutil.WriteFile(stateFile, b, os.ModePerm); err != nil {
-		log.Println("failed to save JSON state:", err)
-	}
 }

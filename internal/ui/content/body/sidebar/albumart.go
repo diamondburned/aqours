@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/diamondburned/aqours/internal/muse/playlist"
+	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui/css"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
@@ -45,7 +46,7 @@ func NewAlbumArt() *AlbumArt {
 	return aa
 }
 
-func (aa *AlbumArt) SetTrack(track *playlist.Track) {
+func (aa *AlbumArt) SetTrack(track *state.Track) {
 	aa.Image.SetFromIconName("media-optical-symbolic", gtk.ICON_SIZE_DIALOG)
 
 	if track == nil {
@@ -55,7 +56,7 @@ func (aa *AlbumArt) SetTrack(track *playlist.Track) {
 	aa.Path = track.Filepath
 
 	go func() {
-		a, err := track.AlbumArt()
+		a, err := playlist.AlbumArt(track.Filepath)
 		if a == nil {
 			if err != nil {
 				log.Println("Failed to get album art:", err)

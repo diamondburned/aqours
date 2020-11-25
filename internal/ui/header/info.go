@@ -1,17 +1,13 @@
 package header
 
 import (
-	"fmt"
-	"html"
-
-	"github.com/diamondburned/aqours/internal/muse/playlist"
+	"github.com/diamondburned/aqours/internal/state"
 	"github.com/gotk3/gotk3/gtk"
 )
 
 type PlaylistInfo struct {
 	gtk.Label // name
 	Playlist  string
-	Unsaved   bool
 }
 
 func NewPlaylistInfo() *PlaylistInfo {
@@ -35,18 +31,16 @@ func (info *PlaylistInfo) Reset() {
 	info.SetMarkup("<b>Aqours</b>")
 }
 
-func (info *PlaylistInfo) SetPlaylist(pl *playlist.Playlist) {
+func (info *PlaylistInfo) SetPlaylist(pl *state.Playlist) {
 	info.Playlist = pl.Name
 	info.SetText(pl.Name)
 	info.SetUnsaved(pl.IsUnsaved())
 }
 
 func (info *PlaylistInfo) SetUnsaved(unsaved bool) {
-	info.Unsaved = unsaved
-
-	if unsaved {
-		info.SetMarkup(fmt.Sprintf("<i>%s</i>", html.EscapeString(info.Playlist)))
-	} else {
+	if !unsaved {
 		info.SetText(info.Playlist)
+	} else {
+		info.SetText(info.Playlist + " ●")
 	}
 }
