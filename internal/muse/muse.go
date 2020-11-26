@@ -45,6 +45,14 @@ func (s *Session) SetPlay(playing bool) error {
 	return s.Playback.Set("pause", !playing)
 }
 
+func (s *Session) SetVolume(perc float64) error {
+	return s.Playback.Set("volume", perc)
+}
+
+func (s *Session) SetMute(muted bool) error {
+	return s.Playback.Set("mute", muted)
+}
+
 type batchErrors []error
 
 func makeBatchErrors(errs ...error) error {

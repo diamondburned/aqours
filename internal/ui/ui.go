@@ -309,3 +309,15 @@ func (w *MainWindow) SelectPlaylist(name string) {
 	w.Header.SetPlaylist(pl)
 	w.SetTitle(fmt.Sprintf("%s - Aqours", pl.Name))
 }
+
+func (w *MainWindow) SetVolume(perc float64) {
+	if err := w.muse.SetVolume(perc); err != nil {
+		log.Println("SetVolume failed:", err)
+	}
+}
+
+func (w *MainWindow) SetMute(muted bool) {
+	if err := w.muse.SetMute(muted); err != nil {
+		log.Println("SetVolume failed:", muted)
+	}
+}

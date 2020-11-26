@@ -14,23 +14,25 @@ var timePositionCSS = css.PrepareClass("time-position", "")
 
 var timeTotalCSS = css.PrepareClass("time-total", "")
 
-var seekBarCSS = css.PrepareClass("seek-bar", `
-	scale.seek-bar {
+var seekBarCSS = css.PrepareClass("seek-bar", ``)
+
+var CleanScaleCSS = css.PrepareClass("clean-scale", `
+	scale {
 		margin: -2px 4px;
 	}
 
-	scale.seek-bar trough,
-	scale.seek-bar highlight {
+	scale trough,
+	scale highlight {
 		border-radius: 9999px;
 	}
 
-	scale.seek-bar slider {
+	scale slider {
 		padding:    1px;
 		background: none;
 		transition: linear 75ms background;
 	}
 
-	scale.seek-bar:hover slider {
+	scale:hover slider {
 		/* Shitty hack to limit background size. Thanks, Gtk. */
 		background: radial-gradient(
 			circle,
@@ -73,6 +75,7 @@ func NewSeek(parent ParentController) *Seek {
 	bar.SetDrawValue(false)
 	bar.SetVAlign(gtk.ALIGN_CENTER)
 	bar.Show()
+	CleanScaleCSS(bar)
 	seekBarCSS(bar)
 
 	bar.Connect("change-value", func(_ *gtk.Scale, _ gtk.ScrollType, v float64) {

@@ -9,6 +9,8 @@ import (
 
 type ParentController interface {
 	controls.ParentController
+	SetVolume(perc float64)
+	SetMute(muted bool)
 }
 
 var nowPlayingCSS = css.PrepareClass("now-playing", `
@@ -17,16 +19,17 @@ var nowPlayingCSS = css.PrepareClass("now-playing", `
 	}
 `)
 
+var volumeCSS = css.PrepareClass("volume", "")
+
 type Container struct {
 	gtk.Grid
 	NowPlaying *NowPlaying
 	Controls   *controls.Container
-	TODOItem   *gtk.Label
+	Volume     *Volume
 }
 
 func NewContainer(parent ParentController) *Container {
 	nowpl := NewNowPlaying()
-	nowpl.SetHAlign(gtk.ALIGN_START)
 	nowpl.Show()
 	nowPlayingCSS(nowpl)
 
@@ -35,9 +38,9 @@ func NewContainer(parent ParentController) *Container {
 	controls.SetHAlign(gtk.ALIGN_FILL)
 	controls.Show()
 
-	item, _ := gtk.LabelNew("Volume")
-	item.SetHAlign(gtk.ALIGN_END)
-	item.Show()
+	vol := NewVolume(parent)
+	vol.Show()
+	volumeCSS(vol)
 
 	grid, _ := gtk.GridNew()
 	grid.SetRowHomogeneous(true)
@@ -47,13 +50,13 @@ func NewContainer(parent ParentController) *Container {
 
 	grid.Attach(nowpl, 0, 0, 1, 1)    // 1st column
 	grid.Attach(controls, 1, 0, 2, 1) // 2nd-3rd; span 2 columns
-	grid.Attach(item, 3, 0, 1, 1)     // 4th column
+	grid.Attach(vol, 3, 0, 1, 1)      // 4th column
 	grid.Show()
 
 	return &Container{
 		Grid:       *grid,
 		NowPlaying: nowpl,
 		Controls:   controls,
-		TODOItem:   item,
+		Volume:     vol,
 	}
 }

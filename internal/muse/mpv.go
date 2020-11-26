@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/DexterLB/mpvipc"
@@ -27,6 +28,7 @@ const (
 	bitrateEvent
 	timePositionEvent
 	timeRemainingEvent
+	audioDeviceEvent
 )
 
 var events = []string{
@@ -39,6 +41,7 @@ var propertyMap = map[mpvEvent]string{
 	bitrateEvent:       "audio-bitrate",
 	timePositionEvent:  "time-pos",
 	timeRemainingEvent: "time-remaining",
+	audioDeviceEvent:   "audio-device",
 }
 
 type mpvLineEvent uint
@@ -80,18 +83,26 @@ func newMpv() (*Session, error) {
 		return nil, errors.Wrap(err, "failed to make socket directory")
 	}
 
-	cmd := exec.Command(
-		"mpv",
+	args := []string{
 		"--idle",
 		"--quiet",
 		"--pause",
 		"--no-input-terminal",
 		"--gapless-audio=weak",
-		"--input-ipc-server="+sockPath,
+		"--input-ipc-server=" + sockPath,
+		"--volume=100",
 		"--no-video",
-		// mpv's vo/image backend is a disappointment.
-	)
+	}
 
+	// Try and support MPV_MPRIS.
+	if scripts := os.Getenv("MPV_SCRIPTS"); scripts != "" {
+		for _, script := range strings.Split(scripts, ":") {
+			args = append(args, "--script="+script)
+		}
+	}
+
+	cmd := exec.Command("mpv", args...)
+	cmd.Env = os.Environ()
 	cmd.Stderr = os.Stderr
 
 	conn := mpvipc.NewConnection(sockPath)
@@ -140,9 +151,6 @@ RetryOpen:
 			return nil, errors.Wrapf(err, "failed to observe property %q", property)
 		}
 	}
-
-	l, _ := conn.Get("audio-device")
-	fmt.Println("Audio device list:", l)
 
 	return &Session{
 		Playback:     conn,
@@ -196,6 +204,9 @@ func (s *Session) Start() {
 				timeRemaining = event.Data.(float64)
 				position, total := timePosition, timePosition+timeRemaining
 				glib.IdleAdd(func() { handler.OnPositionChange(position, total) })
+
+			case audioDeviceEvent:
+				log.Println("Audio device changed to", event.Data)
 			}
 
 			continue
@@ -228,6 +239,7 @@ func (s *Session) Start() {
 func (s *Session) Stop() {
 	select {
 	case <-s.stopEvent:
+		log.Println("Session already stopped; bailing early.")
 		return
 	default:
 		close(s.stopEvent)
