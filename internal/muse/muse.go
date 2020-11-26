@@ -1,8 +1,8 @@
 package muse
 
 import (
+	"log"
 	"os/exec"
-	"strings"
 
 	"github.com/DexterLB/mpvipc"
 	"github.com/pkg/errors"
@@ -28,13 +28,18 @@ func NewSession() (*Session, error) {
 	return newMpv()
 }
 
-func (s *Session) PlayTrack(path string) error {
-	_, err := s.Playback.Call("loadfile", path)
+// PlayTrack asynchronously loads and plays a file. An error is not returned
+// because mpv doesn't seem to return one regardless.
+func (s *Session) PlayTrack(path string) {
+	_, err := s.Playback.Call("async", "loadfile", path)
 	if err != nil {
-		return err
+		log.Println("async loadfile failed:", err)
+		return
 	}
 
-	return s.SetPlay(true)
+	if err := s.SetPlay(true); err != nil {
+		log.Println("play failed:", err)
+	}
 }
 
 func (s *Session) Seek(pos float64) error {
@@ -51,31 +56,4 @@ func (s *Session) SetVolume(perc float64) error {
 
 func (s *Session) SetMute(muted bool) error {
 	return s.Playback.Set("mute", muted)
-}
-
-type batchErrors []error
-
-func makeBatchErrors(errs ...error) error {
-	var nonNils = errs[:0]
-	for _, err := range errs {
-		if err != nil {
-			nonNils = append(nonNils, err)
-		}
-	}
-
-	if len(nonNils) == 0 {
-		return nil
-	}
-
-	return batchErrors(nonNils)
-}
-
-func (b batchErrors) Error() string {
-	var errors = make([]string, len(b))
-	for i, err := range b {
-		errors[i] = err.Error()
-	}
-
-	// English moment.
-	return strings.Join(errors, ", and ")
 }

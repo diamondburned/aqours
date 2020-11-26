@@ -27,6 +27,18 @@ func assert(b bool, e string) {
 	}
 }
 
+// TODO
+// // MusicPlayer is an interface for a music player backend. All its methods
+// // should preferably be non-blocking, and thus should handle error reporting on
+// // its own.
+// type MusicPlayer interface {
+// 	PlayTrack(path string)
+// 	Seek(pos float64)
+// 	SetPlay(bool)
+// 	SetMute(bool)
+// 	SetVolume(float64)
+// }
+
 // maxErrorThreshold is the error threshold before the player stops seeking.
 // Refer to errCounter.
 const maxErrorThreshold = 3
@@ -98,6 +110,9 @@ func (w *MainWindow) UseState(s *state.State) {
 
 func (w *MainWindow) GoBack() { w.Body.SwipeBack() }
 
+// OnSongFinish plays the next song in the playlist. If the error given is not
+// nil, then it'll gradually seek to the next song until either no error is
+// given anymore or the error counter hits its max.
 func (w *MainWindow) OnSongFinish(err error) {
 	if err != nil {
 		w.errCounter++
@@ -281,11 +296,7 @@ func (w *MainWindow) UpdateTracks(playlist *state.Playlist) {
 }
 
 func (w *MainWindow) playTrack(track *state.Track) {
-	if err := w.muse.PlayTrack(track.Filepath); err != nil {
-		log.Println("PlayTrack failed:", err)
-		return
-	}
-
+	w.muse.PlayTrack(track.Filepath)
 	playing := w.state.PlayingPlaylist()
 
 	trackList, ok := w.Body.TracksView.Lists[playing.Name]

@@ -18,7 +18,7 @@ var seekBarCSS = css.PrepareClass("seek-bar", ``)
 
 var CleanScaleCSS = css.PrepareClass("clean-scale", `
 	scale {
-		margin: -2px 4px;
+		margin: -2px 0px;
 	}
 
 	scale trough,
@@ -46,16 +46,13 @@ var CleanScaleCSS = css.PrepareClass("clean-scale", `
 
 var seekCSS = css.PrepareClass("seek", "")
 
-const (
-	seekResolution = 10000
-	seekStep       = 250
-)
-
 type Seek struct {
 	gtk.Box
 	Position  *gtk.Label
 	SeekBar   *gtk.Scale
 	TotalTime *gtk.Label
+
+	total float64
 }
 
 func NewSeek(parent ParentController) *Seek {
@@ -71,7 +68,7 @@ func NewSeek(parent ParentController) *Seek {
 	time.Show()
 	timeTotalCSS(time)
 
-	bar, _ := gtk.ScaleNewWithRange(gtk.ORIENTATION_HORIZONTAL, 0, seekResolution, seekStep)
+	bar, _ := gtk.ScaleNewWithRange(gtk.ORIENTATION_HORIZONTAL, 0, 1, 1)
 	bar.SetDrawValue(false)
 	bar.SetVAlign(gtk.ALIGN_CENTER)
 	bar.Show()
@@ -100,7 +97,7 @@ func NewSeek(parent ParentController) *Seek {
 const secondFloat = float64(time.Second)
 
 func (s *Seek) UpdatePosition(pos, total float64) {
-	s.SeekBar.SetRange(0, total)
+	s.setTotal(total)
 	s.SeekBar.SetValue(pos)
 
 	posDuration := time.Duration(pos * secondFloat)
@@ -108,6 +105,20 @@ func (s *Seek) UpdatePosition(pos, total float64) {
 
 	s.Position.SetMarkup(smallText(durafmt.Format(posDuration)))
 	s.TotalTime.SetMarkup(smallText(durafmt.Format(totalDuration)))
+}
+
+func (s *Seek) setTotal(total float64) {
+	if s.total != total {
+		s.total = total
+
+		// Pretend that total is 1 if it is 0.
+		if total == 0 {
+			total = 1
+		}
+
+		s.SeekBar.SetRange(0, total)
+		s.SeekBar.SetIncrements(total/100, total/10)
+	}
 }
 
 func smallText(text string) string {

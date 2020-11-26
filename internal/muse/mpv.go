@@ -2,15 +2,11 @@ package muse
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
-	"encoding/binary"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -44,10 +40,6 @@ var propertyMap = map[mpvEvent]string{
 	audioDeviceEvent:   "audio-device",
 }
 
-type mpvLineEvent uint
-
-var mpvLineMatchers = map[mpvLineEvent]*regexp.Regexp{}
-
 // EventHandler methods are all called in the glib main thread.
 type EventHandler interface {
 	OnSongFinish(err error)
@@ -58,26 +50,8 @@ type EventHandler interface {
 
 var tmpdir = filepath.Join(os.TempDir(), "aqours")
 
-// generateUniqueBits generates a small string of unique-ish characters.
-func generateUniqueBits() string {
-	randomBits := make([]byte, 2)
-	rand.Read(randomBits)
-
-	nanoBits := make([]byte, 4)
-	nano := uint32(time.Now().Unix())
-	binary.LittleEndian.PutUint32(nanoBits, nano)
-
-	nanob64 := base64.RawURLEncoding.EncodeToString(nanoBits)
-	randb64 := base64.RawURLEncoding.EncodeToString(randomBits)
-	return nanob64 + randb64
-}
-
-func generateMpvSock() string {
-	return filepath.Join(tmpdir, "mpv", generateUniqueBits()+".sock")
-}
-
 func newMpv() (*Session, error) {
-	sockPath := generateMpvSock()
+	sockPath := filepath.Join(tmpdir, "mpv", "mpv.sock")
 
 	if err := os.MkdirAll(filepath.Dir(sockPath), os.ModePerm); err != nil {
 		return nil, errors.Wrap(err, "failed to make socket directory")
@@ -121,6 +95,7 @@ RetryOpen:
 	for {
 		err = conn.Open()
 		if err == nil {
+			cancel()
 			break RetryOpen
 		}
 		select {
