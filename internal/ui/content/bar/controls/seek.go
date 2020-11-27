@@ -52,6 +52,7 @@ type Seek struct {
 	SeekBar   *gtk.Scale
 	TotalTime *gtk.Label
 
+	adj   *gtk.Adjustment
 	total float64
 }
 
@@ -68,7 +69,9 @@ func NewSeek(parent ParentController) *Seek {
 	time.Show()
 	timeTotalCSS(time)
 
-	bar, _ := gtk.ScaleNewWithRange(gtk.ORIENTATION_HORIZONTAL, 0, 1, 1)
+	adj, _ := gtk.AdjustmentNew(0, 0, 1, 1, 1, 0)
+
+	bar, _ := gtk.ScaleNew(gtk.ORIENTATION_HORIZONTAL, adj)
 	bar.SetDrawValue(false)
 	bar.SetVAlign(gtk.ALIGN_CENTER)
 	bar.Show()
@@ -91,6 +94,8 @@ func NewSeek(parent ParentController) *Seek {
 		Position:  pos,
 		SeekBar:   bar,
 		TotalTime: time,
+
+		adj: adj,
 	}
 }
 
@@ -98,7 +103,7 @@ const secondFloat = float64(time.Second)
 
 func (s *Seek) UpdatePosition(pos, total float64) {
 	s.setTotal(total)
-	s.SeekBar.SetValue(pos)
+	s.adj.SetValue(pos)
 
 	posDuration := time.Duration(pos * secondFloat)
 	totalDuration := time.Duration(total * secondFloat)
@@ -111,13 +116,9 @@ func (s *Seek) setTotal(total float64) {
 	if s.total != total {
 		s.total = total
 
-		// Pretend that total is 1 if it is 0.
-		if total == 0 {
-			total = 1
-		}
-
-		s.SeekBar.SetRange(0, total)
-		s.SeekBar.SetIncrements(total/100, total/10)
+		s.adj.SetUpper(total)
+		s.adj.SetPageIncrement(total / 10)
+		s.adj.SetStepIncrement(total / 100)
 	}
 }
 

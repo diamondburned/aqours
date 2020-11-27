@@ -78,12 +78,14 @@ func (np *NowPlaying) SetTrack(track *state.Track) {
 
 	var markup strings.Builder
 	if metadata.Artist != "" {
+		markup.WriteString(`<span alpha="95%">`)
 		markup.WriteString(html.EscapeString(metadata.Artist))
+		markup.WriteString("</span>")
 	}
 
 	if metadata.Album != "" {
 		markup.WriteByte(' ')
-		markup.WriteString(`<span alpha="70%%" size="small">`)
+		markup.WriteString(`<span alpha="70%" size="small">`)
 
 		if metadata.Artist != "" {
 			markup.WriteString("- ")

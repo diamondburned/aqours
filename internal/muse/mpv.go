@@ -154,6 +154,8 @@ func (s *Session) Start() {
 		var timeRemaining, timePosition float64
 
 		for event := range s.eventChannel {
+			// log.Printf("Event name %q = %#v\n", event.Name, event.Data)
+
 			if event.Data == nil {
 				goto handleAllEvents
 			}
