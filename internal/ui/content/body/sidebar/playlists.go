@@ -54,10 +54,12 @@ func (l *PlaylistList) AddPlaylist(pl *state.Playlist) *Playlist {
 
 // SelectFirstPlaylist selects the first playlist. It does nothing if there are
 // no playlists.
-func (l *PlaylistList) SelectFirstPlaylist() {
+func (l *PlaylistList) SelectFirstPlaylist() *Playlist {
 	if len(l.Playlists) > 0 {
 		l.SelectPlaylist(l.Playlists[0])
+		return l.Playlists[0]
 	}
+	return nil
 }
 
 // SelectPlaylist selects the given playlist.

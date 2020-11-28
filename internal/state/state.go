@@ -38,7 +38,10 @@ func failIf(b bool, e string) {
 }
 
 type State struct {
-	metadata      metadataMap `json:"metadata"`
+	// onUpdate is called when a playing track is updated.
+	onUpdate func(s *State)
+
+	metadata      metadataMap
 	playlistNames []PlaylistName
 	playlists     map[PlaylistName]*Playlist
 
@@ -48,8 +51,8 @@ type State struct {
 		QueuePos int   // relative to Queue
 	}
 
-	shuffling bool       `json:"shuffling"`
-	repeating RepeatMode `json:"repeating"`
+	shuffling bool
+	repeating RepeatMode
 
 	saving  chan struct{}
 	unsaved bool
@@ -57,6 +60,8 @@ type State struct {
 
 func NewState() *State {
 	return &State{
+		onUpdate: func(s *State) { s.unsaved = true },
+
 		saving:    make(chan struct{}, 1),
 		metadata:  make(metadataMap),
 		playlists: make(map[PlaylistName]*Playlist),
@@ -70,6 +75,16 @@ func ReadFromFile() (*State, error) {
 	}
 
 	return makeStateFromJSON(s), nil
+}
+
+// OnTrackUpdate adds into the call stack a callback that is triggered when the
+// state is changed.
+func (s *State) OnUpdate(fn func(*State)) {
+	old := s.onUpdate
+	s.onUpdate = func(s *State) {
+		old(s)
+		fn(s)
+	}
 }
 
 // RefreshQueue refreshes completely the current play queue.
@@ -130,6 +145,8 @@ func (s *State) RenamePlaylist(p *Playlist, oldName string) {
 	}
 
 	pl.Name = p.Name
+
+	s.onUpdate(s)
 }
 
 // AddPlaylist adds a playlist. If a playlist with the same name is added, then
@@ -146,6 +163,8 @@ func (s *State) AddPlaylist(p *playlist.Playlist) *Playlist {
 	s.playlists[p.Name] = playlist
 	s.playlistNames = append(s.playlistNames, p.Name)
 
+	s.onUpdate(s)
+
 	return playlist
 }
 
@@ -161,6 +180,8 @@ func (s *State) DeletePlaylist(name string) {
 				s.SetPlayingPlaylist(nil)
 			}
 
+			s.onUpdate(s)
+
 			return
 		}
 	}
@@ -170,7 +191,10 @@ func (s *State) DeletePlaylist(name string) {
 func (s *State) SetPlayingPlaylist(pl *Playlist) {
 	s.assertCoherentState()
 
+	defer s.onUpdate(s)
+
 	s.playing.Playlist = pl
+	s.playing.QueuePos = 0 // reset QueuePos as well
 
 	if pl == nil {
 		s.playing.Queue = nil
@@ -181,7 +205,7 @@ func (s *State) SetPlayingPlaylist(pl *Playlist) {
 
 	if s.shuffling {
 		// Reshuffle.
-		s.SetShuffling(true)
+		playlist.ShuffleQueue(s.playing.Queue)
 	}
 }
 
@@ -226,6 +250,14 @@ func (s *State) IsShuffling() bool {
 
 // SetShuffling sets the shuffling mode.
 func (s *State) SetShuffling(shuffling bool) {
+	// Do nothing if we're setting the same thing. Helps a bit w/ state
+	// inconsistency.
+	if s.shuffling == shuffling {
+		return
+	}
+
+	defer s.onUpdate(s)
+
 	s.shuffling = shuffling
 
 	if s.playing.Playlist == nil {
@@ -254,7 +286,13 @@ func (s *State) RepeatMode() RepeatMode {
 
 // SetRepeatMode sets the current repeat mode.
 func (s *State) SetRepeatMode(mode RepeatMode) {
+	if s.repeating == mode {
+		return
+	}
+
 	s.repeating = mode
+
+	s.onUpdate(s)
 }
 
 // ReloadPlayQueue reloads the internal play queue for the currently playing
@@ -274,79 +312,83 @@ func (s *State) ReloadPlayQueue() {
 
 	// Restore shuffling.
 	if s.shuffling {
-		s.SetShuffling(true)
+		playlist.ShuffleQueue(s.playing.Queue)
 	}
-}
 
-// // trackFromPath searches from the play queue.
-// func (s *State) trackFromPath(path string) (queueIx, plIx int) {
-// 	for i, track := range s.playing.Queue {
-// 		if track.Filepath == path {
-// 			return i, track
-// 		}
-// 	}
-// 	return -1, nil
-// }
-
-func (s *State) nowPlayingTrack() *Track {
-	return s.playing.Playlist.Tracks[s.playing.Queue[s.playing.QueuePos]]
+	s.onUpdate(s)
 }
 
 // Play plays the track indexed relative to the actual playlist. This does not
-// index relative to the actual play queue, which may be shuffled.
+// index relative to the actual play queue, which may be shuffled. It also does
+// not update QueuePos if we're shuffling.
 func (s *State) Play(index int) *Track {
-	return s.play(index, false)
+	// Only update QueuePos if we're not shuffling.
+	if !s.shuffling {
+		s.playing.QueuePos = index
+		defer s.onUpdate(s)
+	}
+
+	return s.playFromPlaylist(index)
 }
 
-func (s *State) play(index int, shuffled bool) *Track {
-	// Ensure that we have an active playing playlist.
-	failIf(s.playing.Playlist == nil, "playing.Playlist is nil while Play is called")
-	// Assert the state after modifying the index.
-	s.assertCoherentState()
+func (s *State) playFromQueue(index int) *Track {
 	// Bound check.
 	failIf(index < 0, "index is negative")
 	failIf(index >= len(s.playing.Queue), "given index is out of bounds in Play")
 
-	queueIx := s.playing.Queue[index]
-	s.playing.QueuePos = index
+	defer s.onUpdate(s)
 
-	return s.playing.Playlist.Tracks[queueIx]
+	s.playing.QueuePos = index
+	return s.playFromPlaylist(s.playing.Queue[index])
+}
+
+func (s *State) playFromPlaylist(index int) *Track {
+	// Ensure that we have an active playing playlist.
+	failIf(s.playing.Playlist == nil, "playing.Playlist is nil while Play is called")
+	// Assert the state after modifying the index.
+	s.assertCoherentState()
+
+	// Bound check.
+	failIf(index < 0, "index is negative")
+	failIf(index >= len(s.playing.Playlist.Tracks), "given index is out of bounds in Play")
+
+	return s.playing.Playlist.Tracks[index]
 }
 
 // Previous returns the previous track, similarly to Next. Nil is returned if
 // there is no previous track. If shuffling mode is on, then Prev will not
 // return the previous track.
-func (s *State) Previous() *Track {
+func (s *State) Previous() (int, *Track) {
 	return s.move(false, true)
 }
 
 // Next returns the next track from the currently playing playlist. Nil is
 // returned if there is no next track.
-func (s *State) Next() *Track {
+func (s *State) Next() (int, *Track) {
 	return s.move(true, true)
 }
 
 // AutoNext returns the next track, unless we're in RepeatSingle mode, then it
 // returns the same track. Use this to cycle across the playlist.
-func (s *State) AutoNext() *Track {
+func (s *State) AutoNext() (int, *Track) {
 	return s.move(true, false)
 }
 
 // move is an abstracted function used by Prev, Next and AutoNext.
-func (s *State) move(forward, force bool) *Track {
+func (s *State) move(forward, force bool) (int, *Track) {
 	s.assertCoherentState()
 
 	if !force && s.repeating == RepeatSingle {
-		return s.nowPlayingTrack()
+		return s.NowPlaying()
 	}
 
 	next, oob := spinIndex(forward, s.playing.QueuePos, len(s.playing.Queue))
 
 	if oob && s.repeating == RepeatNone {
-		return nil
+		return -1, nil
 	}
 
-	return s.play(next, true)
+	return next, s.playFromQueue(next)
 }
 
 // spinIndex spins the index. It returns the newly spun index and whether it was

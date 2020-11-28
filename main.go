@@ -5,6 +5,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/diamondburned/aqours/internal/mpris"
 	"github.com/diamondburned/aqours/internal/muse"
 	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui"
@@ -13,10 +14,13 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 )
 
-const appFlags = glib.APPLICATION_FLAGS_NONE
+const (
+	appFlags = glib.APPLICATION_FLAGS_NONE
+	appID    = "com.github.diamondburned.aqours"
+)
 
 func main() {
-	app, err := gtk.ApplicationNew("com.github.diamondburned.aqours", appFlags)
+	app, err := gtk.ApplicationNew(appID, appFlags)
 	if err != nil {
 		log.Fatalln("Failed to create a GtkApplication:", err)
 	}
@@ -52,12 +56,20 @@ func activate(app *gtk.Application) {
 		st = state.NewState()
 	}
 
-	w, err := ui.NewMainWindow(app, ses)
+	w, err := ui.NewMainWindow(app, ses, st)
 	if err != nil {
 		log.Fatalln("Failed to create main window:", err)
 	}
 
-	w.UseState(st)
+	// Bind MPRIS.
+	m, err := mpris.New()
+	if err != nil {
+		log.Println("Failed to bind MPRIS:", err)
+	}
+
+	// Bind window methods.
+	ses.SetHandler(m.PassthroughEvents(w))
+	st.OnUpdate(m.Update)
 
 	// Start is non-blocking, as it should be when ran inside the main
 	// thread.
@@ -75,6 +87,7 @@ func activate(app *gtk.Application) {
 
 	w.Connect("destroy", func() {
 		ses.Stop()
+		m.Close() // noop if m == nil
 		st.SaveAll()
 	})
 }

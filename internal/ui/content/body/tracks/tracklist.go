@@ -238,6 +238,8 @@ func (list *TrackList) removeSelected() {
 	list.parent.UpdateTracks(list.Playlist)
 }
 
+// SetPlaying unbolds the last track (if any) and bolds the given track. It does
+// not trigger any callback.
 func (list *TrackList) SetPlaying(playing *state.Track) {
 	rw, ok := list.TrackRows[playing]
 	if !ok {
@@ -249,10 +251,11 @@ func (list *TrackList) SetPlaying(playing *state.Track) {
 		playingRow := list.TrackRows[list.playing]
 		playingRow.SetBold(list.Store, false)
 
+		selectedRows := list.Select.CountSelectedRows()
+
 		// Decide if we should move the selection.
-		reselect := true &&
-			list.Select.CountSelectedRows() == 1 &&
-			list.Select.IterIsSelected(playingRow.Iter)
+		reselect := selectedRows == 0 ||
+			(selectedRows == 1 && list.Select.IterIsSelected(playingRow.Iter))
 
 		if reselect {
 			list.Select.UnselectIter(playingRow.Iter)

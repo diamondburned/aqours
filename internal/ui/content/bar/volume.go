@@ -1,6 +1,9 @@
 package bar
 
 import (
+	"log"
+	"runtime/debug"
+
 	"github.com/diamondburned/aqours/internal/ui/content/bar/controls"
 	"github.com/diamondburned/aqours/internal/ui/css"
 	"github.com/gotk3/gotk3/gtk"
@@ -82,8 +85,8 @@ func NewVolume(parent ParentController) *Volume {
 		parent.SetMute(volume.muted)
 	})
 
-	slider.Connect("change-value", func(_ *gtk.Scale, _ gtk.ScrollType, v float64) {
-		volume.volume = clampVolume(v)
+	slider.Connect("value-changed", func() {
+		volume.volume = clampVolume(slider.GetValue())
 		volume.updateIcon()
 		parent.SetVolume(volume.volume)
 	})
@@ -91,9 +94,20 @@ func NewVolume(parent ParentController) *Volume {
 	return volume
 }
 
-// SetVolume sets the volume, triggering the callback to parent.
+// SetVolume sets the volume and triggers the callback to parent.
 func (v *Volume) SetVolume(perc float64) {
+	log.Println("(*Volume).SetVolume called:", string(debug.Stack()))
 	v.Slider.SetValue(perc)
+}
+
+// GetVolume returns the volume.
+func (v *Volume) GetVolume() float64 {
+	return v.volume
+}
+
+// IsMuted returns true if the volume is muted.
+func (v *Volume) IsMuted() bool {
+	return v.muted
 }
 
 func (v *Volume) updateIcon() {

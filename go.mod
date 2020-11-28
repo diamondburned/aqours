@@ -13,6 +13,8 @@ require (
 	github.com/diamondburned/catnip-gtk v0.0.0-20201123211803-fbbb38709ef7
 	github.com/diamondburned/handy v0.0.0-20200829011954-4667e7a918f4
 	github.com/go-test/deep v1.0.7
+	github.com/godbus/dbus v4.1.0+incompatible
+	github.com/godbus/dbus/v5 v5.0.3
 	github.com/gotk3/gotk3 v0.5.1-0.20201028052159-952547abf55a
 	github.com/noriah/catnip v1.0.1-0.20201104094429-58c624d9af1f
 	github.com/pkg/errors v0.9.1

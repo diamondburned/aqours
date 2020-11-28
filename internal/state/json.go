@@ -71,6 +71,7 @@ func makeJSONState(s *State) jsonState {
 
 func makeStateFromJSON(jsonState jsonState) *State {
 	state := &State{
+		onUpdate:      func(s *State) { s.unsaved = true },
 		saving:        make(chan struct{}, 1),
 		metadata:      jsonState.Metadata,
 		playlists:     make(map[PlaylistName]*Playlist, len(jsonState.Playlists)),

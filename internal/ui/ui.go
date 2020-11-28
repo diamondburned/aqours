@@ -56,7 +56,7 @@ type MainWindow struct {
 	errCounter int
 }
 
-func NewMainWindow(a *gtk.Application, session *muse.Session) (*MainWindow, error) {
+func NewMainWindow(a *gtk.Application, session *muse.Session, s *state.State) (*MainWindow, error) {
 	w, err := gtk.ApplicationWindowNew(a)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create window")
@@ -67,7 +67,6 @@ func NewMainWindow(a *gtk.Application, session *muse.Session) (*MainWindow, erro
 	mw := &MainWindow{
 		ApplicationWindow: *w,
 		muse:              session,
-		state:             state.NewState(),
 	}
 
 	mw.Header = header.NewContainer(mw)
@@ -78,33 +77,56 @@ func NewMainWindow(a *gtk.Application, session *muse.Session) (*MainWindow, erro
 	mw.Container = content.NewContainer(mw)
 	w.Add(mw.ContentBox)
 
-	session.SetHandler(mw)
+	mw.useState(s)
 
 	return mw, nil
 }
 
-// UseState makes the MainWindow use an existing state.
-func (w *MainWindow) UseState(s *state.State) {
+// State exposes the local state that was passed in.
+func (w *MainWindow) State() *state.State {
+	return w.state
+}
+
+// useState makes the MainWindow use an existing state.
+func (w *MainWindow) useState(s *state.State) {
 	w.state = s
 
-	// Restore the state.
-	w.Bar.Controls.Buttons.SetRepeat(w.state.RepeatMode(), false)
-	w.Bar.Controls.Buttons.SetShuffle(w.state.IsShuffling())
+	// Restore the state. These calls will update the observer.
+	w.SetRepeat(w.state.RepeatMode())
+	w.SetShuffle(w.state.IsShuffling())
 
-	var selected bool
+	var selected *state.Playlist
 
-	for _, name := range w.state.PlaylistNames() {
+	playlistNames := w.state.PlaylistNames()
+
+	for _, name := range playlistNames {
 		playlist, _ := w.state.Playlist(name)
 		uiPl := w.Body.Sidebar.PlaylistList.AddPlaylist(playlist)
 
 		if name == w.state.PlayingPlaylistName() {
 			w.Body.Sidebar.PlaylistList.SelectPlaylist(uiPl)
-			selected = true
+			selected = playlist
 		}
 	}
 
-	if !selected {
+	// If there's no active selection, then try the first playlist.
+	if selected == nil {
 		w.Body.Sidebar.PlaylistList.SelectFirstPlaylist()
+		selected, _ = w.state.Playlist(playlistNames[0])
+
+		// Ensure we're selecting the right playlist.
+		w.state.SetPlayingPlaylist(selected)
+	}
+
+	// If there is finally a selection, then update the track list. This is nil
+	// when there is no playlist.
+	trackList := w.Body.TracksView.SelectPlaylist(selected)
+
+	// Update the playing track if we have one. NowPlaying should return a track
+	// from the given playlist.
+	_, track := w.state.NowPlaying()
+	if track != nil {
+		trackList.SetPlaying(track)
 	}
 }
 
@@ -130,10 +152,9 @@ func (w *MainWindow) OnSongFinish(err error) {
 	}
 
 	// Play the next song.
-	track := w.state.AutoNext()
+	_, track := w.state.AutoNext()
 	if track != nil {
 		w.playTrack(track)
-		return
 	}
 }
 
@@ -240,19 +261,18 @@ func (w *MainWindow) RenamePlaylist(pl *state.Playlist, newName string) bool {
 func (w *MainWindow) Seek(pos float64) {
 	if err := w.muse.Seek(pos); err != nil {
 		log.Println("Seek failed:", err)
-		return
 	}
 }
 
 func (w *MainWindow) Next() {
-	track := w.state.Next()
+	_, track := w.state.Next()
 	if track != nil {
 		w.playTrack(track)
 	}
 }
 
 func (w *MainWindow) Previous() {
-	track := w.state.Previous()
+	_, track := w.state.Previous()
 	if track != nil {
 		w.playTrack(track)
 	}
@@ -261,7 +281,6 @@ func (w *MainWindow) Previous() {
 func (w *MainWindow) SetPlay(playing bool) {
 	if err := w.muse.SetPlay(playing); err != nil {
 		log.Println("SetPlay failed:", err)
-		return
 	}
 }
 
@@ -285,14 +304,14 @@ func (w *MainWindow) PlayTrack(playlist *state.Playlist, n int) {
 }
 
 func (w *MainWindow) UpdateTracks(playlist *state.Playlist) {
+	w.Header.SetUnsaved(playlist)
+	w.Body.Sidebar.PlaylistList.SetUnsaved(playlist)
+
 	// If we've updated the current playlist, then we should also refresh the
 	// play queue.
 	if w.state.PlayingPlaylist() == playlist {
 		w.state.RefreshQueue()
 	}
-
-	w.Header.SetUnsaved(playlist)
-	w.Body.Sidebar.PlaylistList.SetUnsaved(playlist)
 }
 
 func (w *MainWindow) playTrack(track *state.Track) {
@@ -324,11 +343,13 @@ func (w *MainWindow) SelectPlaylist(name string) {
 func (w *MainWindow) SetVolume(perc float64) {
 	if err := w.muse.SetVolume(perc); err != nil {
 		log.Println("SetVolume failed:", err)
+		return
 	}
 }
 
-func (w *MainWindow) SetMute(muted bool) {
-	if err := w.muse.SetMute(muted); err != nil {
-		log.Println("SetVolume failed:", muted)
+func (w *MainWindow) SetMute(mute bool) {
+	if err := w.muse.SetMute(mute); err != nil {
+		log.Println("SetMute failed:", mute)
+		return
 	}
 }
