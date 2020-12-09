@@ -32,17 +32,22 @@ func main() {
 	// Technically, the usage of sync.Once is overkill here, but who cares, it's
 	// cleaner.
 	var singleInstance sync.Once
+	var deconstructor func()
 
 	app.Connect("activate", func() {
-		singleInstance.Do(func() { activate(app) })
+		singleInstance.Do(func() { deconstructor = activate(app) })
 	})
 
-	if exitCode := app.Run(os.Args); exitCode > 0 {
+	exitCode := app.Run(os.Args)
+
+	deconstructor()
+
+	if exitCode > 0 {
 		os.Exit(exitCode)
 	}
 }
 
-func activate(app *gtk.Application) {
+func activate(app *gtk.Application) (destroy func()) {
 	handy.Init()
 
 	ses, err := muse.NewSession()
@@ -85,9 +90,9 @@ func activate(app *gtk.Application) {
 		return true
 	})
 
-	w.Connect("destroy", func() {
+	return func() {
 		ses.Stop()
 		m.Close() // noop if m == nil
 		st.SaveAll()
-	})
+	}
 }

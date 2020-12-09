@@ -37,6 +37,7 @@ func trackID(playlist *state.Playlist, trackIx int) dbus.ObjectPath {
 type player struct {
 	*ui.MainWindow
 	propQ chan propChange
+	stop  chan struct{}
 
 	// state
 	trackID  dbus.ObjectPath
@@ -52,11 +53,17 @@ type propChange struct {
 
 func newPlayer(prop *prop.Properties) *player {
 	propQ := make(chan propChange, 10)
+	stop := make(chan struct{})
 
 	go func() {
-		for send := range propQ {
-			if err := prop.Set(playerID, send.n, dbus.MakeVariant(send.v)); err != nil {
-				log.Println("MRPIS set prop failed:", err)
+		for {
+			select {
+			case <-stop:
+				return
+			case send := <-propQ:
+				if err := prop.Set(playerID, send.n, dbus.MakeVariant(send.v)); err != nil {
+					log.Println("MRPIS set prop failed:", err)
+				}
 			}
 		}
 	}()
@@ -64,28 +71,35 @@ func newPlayer(prop *prop.Properties) *player {
 	return &player{
 		MainWindow: nil,
 		propQ:      propQ,
+		stop:       stop,
 	}
 }
 
 // Destroy stops background workers.
 func (p *player) Destroy() {
-	close(p.propQ)
+	close(p.stop)
 }
 
-// sendProp asynchronously queues the prop to be sent through DBus. It pops off
-// the first item of the queue if it's full.
+// sendProp queues the prop to be sent through DBus. It pops off the first item
+// of the queue if it's full.
 func (p *player) sendProp(n string, v interface{}) {
 	prop := propChange{n, v}
 
-	select {
-	case p.propQ <- prop:
-		// done
-	default:
-		// Pop the earliest prop out and replace it with our latest prop.
-		<-p.propQ
-		p.propQ <- prop
+	for {
+		select {
+		case <-p.stop:
+			return
+		case p.propQ <- prop:
+			return
+		default:
+			log.Println("Warning: prop send buffer overflow.")
 
-		log.Println("Warning: prop send buffer overflow.")
+			// Try and pop the earliest prop out.
+			select {
+			case <-p.propQ:
+			default:
+			}
+		}
 	}
 }
 

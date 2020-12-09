@@ -70,8 +70,6 @@ func (np *NowPlaying) StopPlaying() {
 }
 
 func (np *NowPlaying) SetTrack(track *state.Track) {
-	np.SubReveal.SetRevealChild(true)
-
 	metadata := track.Metadata()
 
 	np.Title.SetText(metadata.Title)
@@ -95,5 +93,6 @@ func (np *NowPlaying) SetTrack(track *state.Track) {
 		markup.WriteString("</span>")
 	}
 
+	np.SubReveal.SetRevealChild(markup.Len() > 0)
 	np.Subtitle.SetMarkup(markup.String())
 }

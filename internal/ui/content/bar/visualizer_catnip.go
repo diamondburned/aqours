@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/diamondburned/catnip-gtk"
+	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 	"gonum.org/v1/gonum/dsp/window"
@@ -28,11 +29,12 @@ func newCatnip(container *Container, backend, device string) PausedSetter {
 	config.Device = device
 	config.BarWidth = 4      // decent size
 	config.SpaceWidth = 1    // decent size
-	config.SmoothFactor = 50 // magic number!
+	config.SmoothFactor = 42 // magic number!
 	config.MinimumClamp = 4  // hide bars that are too low
 	config.ForceEven = true  // sharpen the bars
 	config.Symmetry = catnip.Horizontal
 	config.WindowFn = catnip.WrapExternalWindowFn(window.Blackman)
+	config.AntiAlias = cairo.ANTIALIAS_NONE
 	config.Monophonic = false
 
 	// Make the foreground transparent.

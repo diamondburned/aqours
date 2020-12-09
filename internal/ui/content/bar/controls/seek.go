@@ -3,6 +3,7 @@ package controls
 import (
 	"fmt"
 	"html"
+	"math"
 	"time"
 
 	"github.com/diamondburned/aqours/internal/durafmt"
@@ -46,14 +47,17 @@ var CleanScaleCSS = css.PrepareClass("clean-scale", `
 
 var seekCSS = css.PrepareClass("seek", "")
 
+const updateSeekEvery = 4 // update once every 4 spins
+
 type Seek struct {
 	gtk.Box
 	Position  *gtk.Label
 	SeekBar   *gtk.Scale
 	TotalTime *gtk.Label
 
-	adj   *gtk.Adjustment
-	total float64
+	adj     *gtk.Adjustment
+	total   float64
+	spinner uint8
 }
 
 func NewSeek(parent ParentController) *Seek {
@@ -102,14 +106,20 @@ func NewSeek(parent ParentController) *Seek {
 const secondFloat = float64(time.Second)
 
 func (s *Seek) UpdatePosition(pos, total float64) {
-	s.setTotal(total)
-	s.adj.SetValue(pos)
+	s.setTotal(math.Round(total))
 
-	posDuration := time.Duration(pos * secondFloat)
-	totalDuration := time.Duration(total * secondFloat)
+	if s.shouldUpdate() {
+		s.adj.SetValue(pos)
 
-	s.Position.SetMarkup(smallText(durafmt.Format(posDuration)))
-	s.TotalTime.SetMarkup(smallText(durafmt.Format(totalDuration)))
+		posDuration := time.Duration(pos * secondFloat)
+		s.Position.SetMarkup(smallText(durafmt.Format(posDuration)))
+	}
+}
+
+func (s *Seek) shouldUpdate() bool {
+	spin := s.spinner
+	s.spinner = (s.spinner + 1) % updateSeekEvery
+	return spin == 0
 }
 
 func (s *Seek) setTotal(total float64) {
@@ -119,6 +129,9 @@ func (s *Seek) setTotal(total float64) {
 		s.adj.SetUpper(total)
 		s.adj.SetPageIncrement(total / 10)
 		s.adj.SetStepIncrement(total / 100)
+
+		totalDuration := time.Duration(total * secondFloat)
+		s.TotalTime.SetMarkup(smallText(durafmt.Format(totalDuration)))
 	}
 }
 

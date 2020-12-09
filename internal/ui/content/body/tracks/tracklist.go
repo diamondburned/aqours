@@ -247,23 +247,28 @@ func (list *TrackList) SetPlaying(playing *state.Track) {
 		return
 	}
 
+	// If we have nothing playing, then we should reselect. I'm not sure of this
+	// behavior.
+	reselect := list.playing == nil
+
 	if list.playing != nil {
 		playingRow := list.TrackRows[list.playing]
 		playingRow.SetBold(list.Store, false)
 
-		selectedRows := list.Select.CountSelectedRows()
-
 		// Decide if we should move the selection.
-		reselect := selectedRows == 0 ||
-			(selectedRows == 1 && list.Select.IterIsSelected(playingRow.Iter))
+		selectedRows := list.Select.CountSelectedRows()
+		reselect = selectedRows == 1 && list.Select.IterIsSelected(playingRow.Iter)
 
 		if reselect {
 			list.Select.UnselectIter(playingRow.Iter)
-			list.Select.SelectIter(rw.Iter)
-
-			path, _ := list.Store.GetPath(rw.Iter)
-			list.Tree.ScrollToCell(path, nil, false, 0, 0)
 		}
+	}
+
+	if reselect {
+		list.Select.SelectIter(rw.Iter)
+
+		path, _ := list.Store.GetPath(rw.Iter)
+		list.Tree.ScrollToCell(path, nil, false, 0, 0)
 	}
 
 	list.playing = playing

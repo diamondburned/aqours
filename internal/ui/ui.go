@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/diamondburned/aqours/internal/muse"
 	"github.com/diamondburned/aqours/internal/muse/playlist"
@@ -43,6 +44,8 @@ func assert(b bool, e string) {
 // Refer to errCounter.
 const maxErrorThreshold = 3
 
+const minPlayLength = 250 * time.Millisecond
+
 type MainWindow struct {
 	gtk.ApplicationWindow
 	content.Container
@@ -52,8 +55,8 @@ type MainWindow struct {
 	muse  *muse.Session
 	state *state.State
 
-	// errCounter is the counter to print errors before pausing.
-	errCounter int
+	lastPlayed time.Time
+	skipCount  int
 }
 
 func NewMainWindow(a *gtk.Application, session *muse.Session, s *state.State) (*MainWindow, error) {
@@ -136,20 +139,23 @@ func (w *MainWindow) GoBack() { w.Body.SwipeBack() }
 // nil, then it'll gradually seek to the next song until either no error is
 // given anymore or the error counter hits its max.
 func (w *MainWindow) OnSongFinish(err error) {
-	if err != nil {
-		w.errCounter++
+	now := time.Now()
 
-		log.Println("Error playing track:", err)
-
-		if w.errCounter > maxErrorThreshold {
-			w.SetPlay(false)
-			return
-		}
+	// Are we going too quickly?
+	if w.lastPlayed.Add(minPlayLength).After(now) {
+		// Increment skip count. If we're over the bound, then stop.
+		w.skipCount++
+		log.Println("Track too short. Skipped tracks:", w.skipCount)
+	} else {
+		w.skipCount = 0
 	}
 
-	if w.errCounter > 0 {
-		w.errCounter = 0
+	if w.skipCount > maxErrorThreshold {
+		log.Println("Skipped tracks over threshold, stopping.")
+		return
 	}
+
+	w.lastPlayed = now
 
 	// Play the next song.
 	_, track := w.state.AutoNext()

@@ -57,6 +57,11 @@ func newMpv() (*Session, error) {
 		return nil, errors.Wrap(err, "failed to make socket directory")
 	}
 
+	// Trust Gtk in doing the right thing.
+	if err := os.RemoveAll(sockPath); err != nil {
+		return nil, errors.Wrap(err, "failed to clean up socket")
+	}
+
 	args := []string{
 		"--idle",
 		"--quiet",
@@ -154,8 +159,6 @@ func (s *Session) Start() {
 		var timeRemaining, timePosition float64
 
 		for event := range s.eventChannel {
-			// log.Printf("Event name %q = %#v\n", event.Name, event.Data)
-
 			if event.Data == nil {
 				goto handleAllEvents
 			}
@@ -179,8 +182,6 @@ func (s *Session) Start() {
 
 			case timeRemainingEvent:
 				timeRemaining = event.Data.(float64)
-				position, total := timePosition, timePosition+timeRemaining
-				glib.IdleAdd(func() { handler.OnPositionChange(position, total) })
 
 			case audioDeviceEvent:
 				log.Println("Audio device changed to", event.Data)
@@ -191,15 +192,19 @@ func (s *Session) Start() {
 		handleAllEvents:
 			switch event.Name {
 			case "idle":
+				log.Println("Player is idle.")
 				glib.IdleAdd(func() { handler.OnSongFinish(nil) })
 
 			case "end-file":
+				log.Printf("End of file, reason: %q\n", event.Reason)
 				// Empty reason means not end of file. Don't do anything.
 				// Sometimes, when a track ends or we change the track, this
 				// event is fired with an empty reason. Thankfully, we could
 				// also check for the "idle" event instead, so this event will
 				// be used more for errors.
-				if event.Reason != "" {
+				//
+				// For some reason, the stop event behaves a bit erratically.
+				if event.Reason != "" && event.Reason != "stop" {
 					var err error
 					if event.Reason != "eof" {
 						err = fmt.Errorf("error while playing: %s", event.Reason)
