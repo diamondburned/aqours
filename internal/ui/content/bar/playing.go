@@ -18,14 +18,29 @@ var subtitleCSS = css.PrepareClass("subtitle", `
 	}
 `)
 
+var nowPlayingCSS = css.PrepareClass("now-playing", `
+	button.now-playing {
+		margin:  8px;
+		padding: 0;
+		background: none;
+		box-shadow: none;
+		transition: linear 45ms;
+	}
+	button.now-playing:active {
+		margin-bottom: 6px;
+	}
+`)
+
 type NowPlaying struct {
-	gtk.Box
+	gtk.Button
+	Container *gtk.Box
+
 	Title     *gtk.Label
 	SubReveal *gtk.Revealer
 	Subtitle  *gtk.Label
 }
 
-func NewNowPlaying() *NowPlaying {
+func NewNowPlaying(parent ParentController) *NowPlaying {
 	title, _ := gtk.LabelNew("")
 	title.SetEllipsize(pango.ELLIPSIZE_END)
 	title.SetXAlign(0)
@@ -52,8 +67,16 @@ func NewNowPlaying() *NowPlaying {
 	box.SetVAlign(gtk.ALIGN_CENTER)
 	box.Show()
 
+	btn, _ := gtk.ButtonNew()
+	btn.SetRelief(gtk.RELIEF_NONE)
+	btn.Add(box)
+	btn.Show()
+	btn.Connect("clicked", parent.ScrollToPlaying)
+	nowPlayingCSS(btn)
+
 	np := &NowPlaying{
-		Box:       *box,
+		Button:    *btn,
+		Container: box,
 		Title:     title,
 		SubReveal: subrev,
 		Subtitle:  subtitle,

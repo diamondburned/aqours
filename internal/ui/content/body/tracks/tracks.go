@@ -1,13 +1,23 @@
 package tracks
 
 import (
+	"fmt"
+	"html"
+	"io"
+	"strings"
+
 	"github.com/diamondburned/aqours/internal/durafmt"
 	"github.com/diamondburned/aqours/internal/state"
+	"github.com/diamondburned/aqours/internal/ui/content/body/sidebar"
+	"github.com/diamondburned/aqours/internal/ui/css"
+	"github.com/gotk3/gotk3/gdk"
+	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
 )
 
 type ParentController interface {
+	gtk.IWindow
 	PlayTrack(p *state.Playlist, index int)
 	UpdateTracks(p *state.Playlist)
 }
@@ -16,16 +26,6 @@ type ListStorer interface {
 	Set(iter *gtk.TreeIter, columns []int, values []interface{}) error
 	SetValue(iter *gtk.TreeIter, column int, value interface{}) error
 }
-
-type columnType = int
-
-const (
-	columnTitle columnType = iota
-	columnArtist
-	columnAlbum
-	columnTime
-	columnSelected
-)
 
 type Container struct {
 	gtk.Stack
@@ -89,7 +89,7 @@ func newColumn(text string, col columnType) *gtk.TreeViewColumn {
 	case columnTime:
 		c.SetMinWidth(50)
 
-	case columnSelected:
+	case columnSelected, columnSearchData:
 		c.SetVisible(false)
 
 	default:
@@ -113,15 +113,32 @@ func (row *TrackRow) SetBold(store ListStorer, bold bool) {
 func (row *TrackRow) setListStore(t *state.Track, store ListStorer) {
 	metadata := t.Metadata()
 
+	searchData := strings.Builder{}
+	searchData.WriteString(metadata.Title)
+	searchData.WriteByte(' ')
+	searchData.WriteString(metadata.Artist)
+	searchData.WriteByte(' ')
+	searchData.WriteString(metadata.Album)
+	searchData.WriteByte(' ')
+	searchData.WriteString(metadata.Filepath)
+
 	store.Set(
 		row.Iter,
-		[]int{columnTitle, columnArtist, columnAlbum, columnTime, columnSelected},
+		[]int{
+			columnTitle,
+			columnArtist,
+			columnAlbum,
+			columnTime,
+			columnSelected,
+			columnSearchData,
+		},
 		[]interface{}{
 			metadata.Title,
 			metadata.Artist,
 			metadata.Album,
 			durafmt.Format(metadata.Length),
 			weight(row.Bold),
+			searchData.String(),
 		},
 	)
 }
@@ -131,4 +148,73 @@ func weight(bold bool) pango.Weight {
 		return pango.WEIGHT_BOLD
 	}
 	return pango.WEIGHT_BOOK
+}
+
+const (
+	AlbumIconSize = gtk.ICON_SIZE_DIALOG
+	PixelIconSize = 96
+)
+
+var trackTooltipCSS = css.PrepareClass("track-tooltip", "")
+
+var trackTooltipImageCSS = css.PrepareClass("track-tooltip-image", `
+	image {
+		margin: 6px;
+	}
+`)
+
+type trackTooltipBox struct {
+	tooltip   *gtk.Tooltip
+	image     *gdk.Pixbuf
+	trackPath string
+}
+
+func newTrackTooltipBox() *trackTooltipBox {
+	return &trackTooltipBox{}
+}
+
+func (tt *trackTooltipBox) Attach(t *gtk.Tooltip, track *state.Track) {
+	mdata := track.Metadata()
+
+	if tt.trackPath != mdata.Filepath {
+		tt.image = nil
+	}
+
+	tt.trackPath = mdata.Filepath
+
+	if tt.image != nil {
+		t.SetIcon(tt.image)
+	} else {
+		t.SetIconFromIconName("folder-music-symbolic", AlbumIconSize)
+		go func() {
+			p := sidebar.FetchAlbumArt(track, PixelIconSize)
+			if p == nil {
+				return
+			}
+			glib.IdleAdd(func() {
+				if tt.trackPath == mdata.Filepath {
+					t.SetIcon(p)
+					tt.image = p
+				}
+			})
+		}()
+	}
+
+	var builder strings.Builder
+	writeHTMLField(&builder, "<b>Title:</b> %s\n", mdata.Title)
+	writeHTMLField(&builder, "<b>Artist:</b> %s\n", mdata.Artist)
+	writeHTMLField(&builder, "<b>Album:</b> %s\n", mdata.Album)
+	writeHTMLField(&builder, "<b>Length:</b> %s\n", durafmt.Format(mdata.Length))
+	writeHTMLField(&builder,
+		"<b>Filepath:</b> <span insert-hyphens=\"false\">%s</span>",
+		mdata.Filepath,
+	)
+
+	t.SetMarkup(builder.String())
+}
+
+func writeHTMLField(w io.Writer, f, v string) {
+	if v != "" {
+		fmt.Fprintf(w, f, html.EscapeString(v))
+	}
 }

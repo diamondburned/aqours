@@ -9,12 +9,14 @@ import (
 )
 
 type AppControls struct {
+	gtk.MenuButton
+	// TODO
 	gtk.Box
 	OpenPlaylistButton gtk.Button
 }
 
 func NewAppControls(parent ParentController) *AppControls {
-	openBtn, _ := gtk.ButtonNewFromIconName("document-open-symbolic", gtk.ICON_SIZE_BUTTON)
+	openBtn, _ := gtk.ButtonNewFromIconName("list-add-symbolic", gtk.ICON_SIZE_BUTTON)
 	openBtn.Connect("clicked", func() { spawnChooser(parent) })
 	openBtn.SetTooltipMarkup("Add Playlist")
 	openBtn.Show()

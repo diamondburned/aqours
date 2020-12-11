@@ -7,6 +7,7 @@ import (
 	"math"
 
 	"github.com/diamondburned/aqours/internal/state"
+	"github.com/diamondburned/aqours/internal/ui/css"
 	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gtk"
 )
@@ -21,6 +22,12 @@ type ParentController interface {
 	SavePlaylist(pl *state.Playlist)
 	RenamePlaylist(pl *state.Playlist, newName string) bool
 }
+
+var bitrateCSS = css.PrepareClass("bitrate", `
+	label {
+		margin: 0 6px;
+	}
+`)
 
 type Container struct {
 	gtk.HeaderBar
@@ -48,6 +55,7 @@ func NewContainer(parent ParentController) *Container {
 	c.Bitrate, _ = gtk.LabelNew("")
 	c.Bitrate.SetSingleLineMode(true)
 	c.Bitrate.Show()
+	bitrateCSS(c.Bitrate)
 
 	c.Right = NewPlaylistControls(c)
 	c.Right.Show()

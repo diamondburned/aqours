@@ -2,9 +2,11 @@ module github.com/diamondburned/aqours
 
 go 1.15
 
-replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20201130155633-7bac31bb1d45
+replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20201209182406-e7291341a091
 
 replace github.com/noriah/catnip => github.com/diamondburned/tavis v0.0.0-20201107024128-229ebc1a9c2b
+
+replace github.com/DexterLB/mpvipc => github.com/diamondburned/mpvipc v0.0.0-20201209233959-abc9af4dc0af
 
 require (
 	github.com/DexterLB/mpvipc v0.0.0-20190216161438-2a226fa01bbd

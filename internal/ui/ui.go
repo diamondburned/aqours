@@ -138,7 +138,7 @@ func (w *MainWindow) GoBack() { w.Body.SwipeBack() }
 // OnSongFinish plays the next song in the playlist. If the error given is not
 // nil, then it'll gradually seek to the next song until either no error is
 // given anymore or the error counter hits its max.
-func (w *MainWindow) OnSongFinish(err error) {
+func (w *MainWindow) OnSongFinish() {
 	now := time.Now()
 
 	// Are we going too quickly?
@@ -339,11 +339,21 @@ func (w *MainWindow) SelectPlaylist(name string) {
 		return
 	}
 
+	w.selectPlaylist(pl)
+}
+
+func (w *MainWindow) selectPlaylist(pl *state.Playlist) {
 	// Don't change the state's playing playlist.
 
-	w.Body.TracksView.SelectPlaylist(pl)
+	trackList := w.Body.TracksView.SelectPlaylist(pl)
+	trackList.SelectPlaying()
+
 	w.Header.SetPlaylist(pl)
 	w.SetTitle(fmt.Sprintf("%s - Aqours", pl.Name))
+}
+
+func (w *MainWindow) ScrollToPlaying() {
+	w.selectPlaylist(w.state.PlayingPlaylist())
 }
 
 func (w *MainWindow) SetVolume(perc float64) {

@@ -125,11 +125,7 @@ func (p *player) SetVolume(volume float64) {}
 
 func (p *player) SetMute(mute bool) {}
 
-// Volume and Bitrate omitted (inherited).
-
-func (p *player) OnSongFinish(err error) {
-	p.MainWindow.OnSongFinish(err)
-}
+// Volume, Bitrate and OnSongFinish omitted (inherited).
 
 func (p *player) OnPauseUpdate(pause bool) {
 	p.MainWindow.OnPauseUpdate(pause)

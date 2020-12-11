@@ -39,7 +39,7 @@ func init() {
 				job := job // copy must
 
 				// Probe and update the copy.
-				if err := job.cpy.Probe(); err != nil {
+				if err := job.cpy.ForceProbe(); err != nil {
 					log.Printf("Failed to probe %q: %v", job.cpy.Filepath, err)
 					continue
 				}

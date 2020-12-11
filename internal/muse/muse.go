@@ -14,14 +14,13 @@ import (
 var ErrNoPlaylistLoaded = errors.New("no playlist loaded")
 
 type Session struct {
-	Playback *mpvipc.Connection
-	Command  *exec.Cmd
+	Playback   *mpvipc.Connection
+	Command    *exec.Cmd
+	handler    EventHandler
+	socketPath string
 
-	handler EventHandler
-
-	socketPath   string
-	eventChannel chan *mpvipc.Event
-	stopEvent    chan struct{}
+	// OnAsyncError is called on both nil and non-nil.
+	OnAsyncError func(error)
 }
 
 func NewSession() (*Session, error) {
@@ -31,8 +30,9 @@ func NewSession() (*Session, error) {
 // PlayTrack asynchronously loads and plays a file. An error is not returned
 // because mpv doesn't seem to return one regardless.
 func (s *Session) PlayTrack(path string) {
-	_, err := s.Playback.Call("async", "loadfile", path)
-	if err != nil {
+	errFn := func(v interface{}, err error) { s.OnAsyncError(err) }
+
+	if err := s.Playback.CallAsync(errFn, "async", "loadfile", path); err != nil {
 		log.Println("async loadfile failed:", err)
 		return
 	}
@@ -43,17 +43,17 @@ func (s *Session) PlayTrack(path string) {
 }
 
 func (s *Session) Seek(pos float64) error {
-	return s.Playback.Set("time-pos", pos)
+	return s.Playback.SetAsync("time-pos", pos, s.OnAsyncError)
 }
 
 func (s *Session) SetPlay(playing bool) error {
-	return s.Playback.Set("pause", !playing)
+	return s.Playback.SetAsync("pause", !playing, s.OnAsyncError)
 }
 
 func (s *Session) SetVolume(perc float64) error {
-	return s.Playback.Set("volume", perc)
+	return s.Playback.SetAsync("volume", perc, s.OnAsyncError)
 }
 
 func (s *Session) SetMute(muted bool) error {
-	return s.Playback.Set("mute", muted)
+	return s.Playback.SetAsync("mute", muted, s.OnAsyncError)
 }

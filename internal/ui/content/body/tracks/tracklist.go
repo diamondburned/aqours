@@ -26,6 +26,9 @@ type TrackList struct {
 	TrackRows map[*state.Track]*TrackRow
 
 	playing *state.Track
+
+	menu    *gtk.Menu
+	refresh *gtk.MenuItem
 }
 
 var trackListDragTargets = []gtk.TargetEntry{
@@ -37,6 +40,17 @@ func targetEntry(target string, f gtk.TargetFlags, info uint) gtk.TargetEntry {
 	return *e
 }
 
+type columnType = int
+
+const (
+	columnTitle columnType = iota
+	columnArtist
+	columnAlbum
+	columnTime
+	columnSelected
+	columnSearchData
+)
+
 func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 	store, _ := gtk.ListStoreNew(
 		glib.TYPE_STRING, // columnTitle
@@ -44,19 +58,19 @@ func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 		glib.TYPE_STRING, // columnAlbum
 		glib.TYPE_STRING, // columnTime
 		glib.TYPE_INT,    // columnSelected - pango.Weight
+		glib.TYPE_STRING, // columnSearchData
 	)
 
 	tree, _ := gtk.TreeViewNewWithModel(store)
 	tree.SetActivateOnSingleClick(false)
+	tree.SetProperty("has-tooltip", true)
 	tree.AppendColumn(newColumn("Title", columnTitle))
 	tree.AppendColumn(newColumn("Artist", columnArtist))
 	tree.AppendColumn(newColumn("Album", columnAlbum))
 	tree.AppendColumn(newColumn("", columnTime))
 	tree.AppendColumn(newColumn("", columnSelected))
+	tree.SetSearchColumn(tree.AppendColumn(newColumn("", columnSearchData)))
 	tree.Show()
-
-	// tree.SetReorderable(true)
-	// tree.Connect("")
 
 	s, _ := tree.GetSelection()
 	s.SetMode(gtk.SELECTION_MULTIPLE)
@@ -162,6 +176,51 @@ func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 		}
 	})
 
+	list.refresh, _ = gtk.MenuItemNewWithLabel("Refresh Metadata")
+	list.refresh.Show()
+	list.refresh.Connect("activate", list.refreshSelected)
+
+	list.menu, _ = gtk.MenuNew()
+	list.menu.Add(list.refresh)
+
+	tree.Connect("button-press-event", func(_ gtk.IWidget, ev *gdk.Event) bool {
+		bp := gdk.EventButtonNewFromEvent(ev)
+
+		switch bp.Button() {
+		case gdk.BUTTON_SECONDARY:
+			list.menu.PopupAtPointer(ev)
+			return true
+		default:
+			return false
+		}
+	})
+
+	// This leaks one Pixbuf but who cares.
+	trackTooltip := newTrackTooltipBox()
+
+	tree.Connect("query-tooltip",
+		func(_ gtk.IWidget, x, y int, kb bool, t *gtk.Tooltip) bool {
+			var path *gtk.TreePath
+			if !kb {
+				path, _, _ = tree.GetDestRowAtPos(x, y)
+			} else {
+				_, iter, _ := list.Select.GetSelected()
+				if iter != nil {
+					path, _ = list.Store.GetPath(iter)
+				}
+			}
+
+			if path == nil {
+				return false
+			}
+
+			ix := path.GetIndices()[0]
+			trackTooltip.Attach(t, list.Playlist.Tracks[ix])
+
+			return true
+		},
+	)
+
 	return &list
 }
 
@@ -236,6 +295,45 @@ func (list *TrackList) removeSelected() {
 
 	list.Playlist.Remove(selectIx...)
 	list.parent.UpdateTracks(list.Playlist)
+}
+
+func (list *TrackList) refreshSelected() {
+	selected := list.Select.GetSelectedRows(list.Store)
+	selectIx := make([]int, 0, selected.Length())
+
+	selected.Foreach(func(v interface{}) {
+		path := v.(*gtk.TreePath)
+		selectIx = append(selectIx, path.GetIndices()[0])
+	})
+
+	if len(selectIx) == 0 {
+		return
+	}
+
+	probeQueue := make([]prober.Job, len(selectIx))
+
+	for i, ix := range selectIx {
+		track := list.Playlist.Tracks[ix]
+		probeQueue[i] = prober.NewJob(track, func() {
+			row := list.TrackRows[track]
+			row.setListStore(track, list.Store)
+		})
+	}
+
+	prober.Queue(probeQueue...)
+}
+
+func (list *TrackList) SelectPlaying() {
+	rw, ok := list.TrackRows[list.playing]
+	if !ok {
+		return
+	}
+
+	list.Select.UnselectAll()
+	list.Select.SelectIter(rw.Iter)
+
+	path, _ := list.Store.GetPath(rw.Iter)
+	list.Tree.ScrollToCell(path, nil, false, 0, 0)
 }
 
 // SetPlaying unbolds the last track (if any) and bolds the given track. It does

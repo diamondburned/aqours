@@ -9,15 +9,10 @@ import (
 
 type ParentController interface {
 	controls.ParentController
+	ScrollToPlaying()
 	SetVolume(perc float64)
 	SetMute(muted bool)
 }
-
-var nowPlayingCSS = css.PrepareClass("now-playing", `
-	box.now-playing {
-		margin: 8px;
-	}
-`)
 
 var volumeCSS = css.PrepareClass("volume", "")
 
@@ -29,9 +24,8 @@ type Container struct {
 }
 
 func NewContainer(parent ParentController) *Container {
-	nowpl := NewNowPlaying()
+	nowpl := NewNowPlaying(parent)
 	nowpl.Show()
-	nowPlayingCSS(nowpl)
 
 	controls := controls.NewContainer(parent)
 	controls.SetHExpand(true)

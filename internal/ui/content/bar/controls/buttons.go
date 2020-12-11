@@ -75,7 +75,7 @@ func NewButtons(parent ParentController) *Buttons {
 
 	prev, _ := gtk.ButtonNew()
 	prev.SetRelief(gtk.RELIEF_NONE)
-	prev.SetImage(newIconImage("go-first-symbolic"))
+	prev.SetImage(newIconImage("media-skip-backward"))
 	prev.SetVAlign(gtk.ALIGN_CENTER)
 	prev.Connect("clicked", parent.Previous)
 	prev.Show()
@@ -89,7 +89,7 @@ func NewButtons(parent ParentController) *Buttons {
 
 	next, _ := gtk.ButtonNew()
 	next.SetRelief(gtk.RELIEF_NONE)
-	next.SetImage(newIconImage("go-last-symbolic"))
+	next.SetImage(newIconImage("media-skip-forward"))
 	next.SetVAlign(gtk.ALIGN_CENTER)
 	next.Connect("clicked", parent.Next)
 	next.Show()

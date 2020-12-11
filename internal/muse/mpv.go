@@ -2,7 +2,6 @@ package muse
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -42,7 +41,7 @@ var propertyMap = map[mpvEvent]string{
 
 // EventHandler methods are all called in the glib main thread.
 type EventHandler interface {
-	OnSongFinish(err error)
+	OnSongFinish()
 	OnPauseUpdate(pause bool)
 	OnBitrateChange(bitrate float64)
 	OnPositionChange(pos, total float64)
@@ -67,7 +66,7 @@ func newMpv() (*Session, error) {
 		"--quiet",
 		"--pause",
 		"--no-input-terminal",
-		"--gapless-audio=weak",
+		"--gapless-audio=yes",
 		"--input-ipc-server=" + sockPath,
 		"--volume=100",
 		"--no-video",
@@ -133,11 +132,14 @@ RetryOpen:
 	}
 
 	return &Session{
-		Playback:     conn,
-		Command:      cmd,
-		socketPath:   sockPath,
-		eventChannel: make(chan *mpvipc.Event, 8),
-		stopEvent:    make(chan struct{}),
+		Playback:   conn,
+		Command:    cmd,
+		socketPath: sockPath,
+		OnAsyncError: func(err error) {
+			if err != nil {
+				log.Println("mpv async error:", err)
+			}
+		},
 	}, nil
 }
 
@@ -151,82 +153,69 @@ func (s *Session) Start() {
 	// Copy the handler so the caller cannot change it.
 	var handler = s.handler
 
-	go s.Playback.ListenForEvents(s.eventChannel, s.stopEvent)
+	// This is kind of racy, but that's about as good as "event-based" as we
+	// can get.
+	var timeRemaining, timePosition float64
 
-	go func() {
-		// This is kind of racy, but that's about as good as "event-based" as we
-		// can get.
-		var timeRemaining, timePosition float64
-
-		for event := range s.eventChannel {
-			if event.Data == nil {
-				goto handleAllEvents
-			}
-
-			switch mpvEvent(event.ID) {
-			case allEvent:
-				goto handleAllEvents
-
-			case pauseEvent:
-				b := event.Data.(bool)
-				glib.IdleAdd(func() { handler.OnPauseUpdate(b) })
-
-			case bitrateEvent:
-				i := event.Data.(float64)
-				glib.IdleAdd(func() { handler.OnBitrateChange(i) })
-
-			case timePositionEvent:
-				timePosition = event.Data.(float64)
-				position, total := timePosition, timePosition+timeRemaining
-				glib.IdleAdd(func() { handler.OnPositionChange(position, total) })
-
-			case timeRemainingEvent:
-				timeRemaining = event.Data.(float64)
-
-			case audioDeviceEvent:
-				log.Println("Audio device changed to", event.Data)
-			}
-
-			continue
-
-		handleAllEvents:
-			switch event.Name {
-			case "idle":
-				log.Println("Player is idle.")
-				glib.IdleAdd(func() { handler.OnSongFinish(nil) })
-
-			case "end-file":
-				log.Printf("End of file, reason: %q\n", event.Reason)
-				// Empty reason means not end of file. Don't do anything.
-				// Sometimes, when a track ends or we change the track, this
-				// event is fired with an empty reason. Thankfully, we could
-				// also check for the "idle" event instead, so this event will
-				// be used more for errors.
-				//
-				// For some reason, the stop event behaves a bit erratically.
-				if event.Reason != "" && event.Reason != "stop" {
-					var err error
-					if event.Reason != "eof" {
-						err = fmt.Errorf("error while playing: %s", event.Reason)
-					}
-					glib.IdleAdd(func() { handler.OnSongFinish(err) })
-				}
-			}
+	s.Playback.ListenForEvents(func(event *mpvipc.Event) {
+		if event.Data == nil {
+			goto handleAllEvents
 		}
-	}()
+
+		switch mpvEvent(event.ID) {
+		case allEvent:
+			goto handleAllEvents
+
+		case pauseEvent:
+			b := event.Data.(bool)
+			glib.IdleAdd(func() { handler.OnPauseUpdate(b) })
+
+		case bitrateEvent:
+			i := event.Data.(float64)
+			glib.IdleAdd(func() { handler.OnBitrateChange(i) })
+
+		case timePositionEvent:
+			timePosition = event.Data.(float64)
+			position, total := timePosition, timePosition+timeRemaining
+			glib.IdleAdd(func() { handler.OnPositionChange(position, total) })
+
+		case timeRemainingEvent:
+			timeRemaining = event.Data.(float64)
+
+		case audioDeviceEvent:
+			log.Println("Audio device changed to", event.Data)
+		}
+
+		return
+
+	handleAllEvents:
+		switch event.Name {
+		case "idle":
+			log.Println("Player is idle.")
+			glib.IdleAdd(func() { handler.OnSongFinish() })
+
+		case "end-file":
+			log.Printf(
+				"End of file, reason: %q, error: %q %v\n",
+				event.Reason, event.Error, event.Data,
+			)
+			// Empty reason means not end of file. Don't do anything.
+			// Sometimes, when a track ends or we change the track, this
+			// event is fired with an empty reason. Thankfully, we could
+			// also check for the "idle" event instead, so this event will
+			// be used more for errors.
+			//
+			// For some reason, the stop event behaves a bit erratically.
+			// if event.Reason != "" && event.Reason != "stop" {
+			// 	glib.IdleAdd(func() { handler.OnSongFinish() })
+			// }
+		}
+	})
 }
 
 // Stop stops the mpv session. It does nothing if it's called more than once. A
 // stopped session cannot be reused.
 func (s *Session) Stop() {
-	select {
-	case <-s.stopEvent:
-		log.Println("Session already stopped; bailing early.")
-		return
-	default:
-		close(s.stopEvent)
-	}
-
 	s.Playback.Close()
 
 	if err := s.Command.Process.Signal(os.Interrupt); err != nil {

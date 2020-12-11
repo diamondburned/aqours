@@ -20,8 +20,14 @@ github.com/diamondburned/gotk3 v0.0.0-20201125221322-4028816f3fce h1:e6+u7nl+gqH
 github.com/diamondburned/gotk3 v0.0.0-20201125221322-4028816f3fce/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
 github.com/diamondburned/gotk3 v0.0.0-20201130155633-7bac31bb1d45 h1:KFpxiWfYl9bVDO0ngXtsEENa53lu4VagdJFaHJm2/Ok=
 github.com/diamondburned/gotk3 v0.0.0-20201130155633-7bac31bb1d45/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
+github.com/diamondburned/gotk3 v0.0.0-20201209182406-e7291341a091 h1:lQpSWzbi3rQf66aMSip/rIypasIFwqCqF0Wfn5og6gw=
+github.com/diamondburned/gotk3 v0.0.0-20201209182406-e7291341a091/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
 github.com/diamondburned/handy v0.0.0-20200829011954-4667e7a918f4 h1:qF5VHC35+GyCjUmKz+1O94xpFc0JQd4Ui3h+I955pJw=
 github.com/diamondburned/handy v0.0.0-20200829011954-4667e7a918f4/go.mod h1:V0qyhW4v6KPFwtDpXdBm5aWH7zWEyrzZpcB6MPnKArQ=
+github.com/diamondburned/mpvipc v0.0.0-20201209232846-4068be1242b4 h1:4DUJs9mhlelGQ67cBJeRnoV5A+8CLQBWRb2fta5ko+k=
+github.com/diamondburned/mpvipc v0.0.0-20201209232846-4068be1242b4/go.mod h1:MOb+Drd+EFz0VPj7rIvOWoXSujs55jAL7MGCUQIrM7M=
+github.com/diamondburned/mpvipc v0.0.0-20201209233959-abc9af4dc0af h1:ieA6nTXvTfZDMIMXbGtcwaqqvVz72XPXp0GY7PA0M6k=
+github.com/diamondburned/mpvipc v0.0.0-20201209233959-abc9af4dc0af/go.mod h1:MOb+Drd+EFz0VPj7rIvOWoXSujs55jAL7MGCUQIrM7M=
 github.com/diamondburned/tavis v0.0.0-20201107024128-229ebc1a9c2b h1:JOCSfrw8Q6EDcJzeumF9Jjlr3ATaKEIRSZ1JVGpAXig=
 github.com/diamondburned/tavis v0.0.0-20201107024128-229ebc1a9c2b/go.mod h1:PhwRw+u4VahyvQ/4LwTo/oy/04XKO+t4/Cyw1DMIQYU=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
