@@ -66,9 +66,13 @@ func newMpv() (*Session, error) {
 		"--quiet",
 		"--pause",
 		"--no-input-terminal",
-		"--gapless-audio=yes",
+		"--loop-playlist=no",
+		"--gapless-audio=weak",
+		"--replaygain=album",
+		"--ad=lavc:*",
 		"--input-ipc-server=" + sockPath,
 		"--volume=100",
+		"--volume-max=100",
 		"--no-video",
 	}
 
@@ -191,8 +195,8 @@ func (s *Session) Start() {
 	handleAllEvents:
 		switch event.Name {
 		case "idle":
-			log.Println("Player is idle.")
-			glib.IdleAdd(func() { handler.OnSongFinish() })
+			// log.Println("Player is idle.")
+			// glib.IdleAdd(func() { handler.OnSongFinish() })
 
 		case "end-file":
 			log.Printf(
@@ -206,9 +210,12 @@ func (s *Session) Start() {
 			// be used more for errors.
 			//
 			// For some reason, the stop event behaves a bit erratically.
-			// if event.Reason != "" && event.Reason != "stop" {
-			// 	glib.IdleAdd(func() { handler.OnSongFinish() })
-			// }
+			if event.Reason != "" && event.Reason != "stop" {
+				glib.IdleAdd(func() {
+					s.stopped = true
+					handler.OnSongFinish()
+				})
+			}
 		}
 	})
 }

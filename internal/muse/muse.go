@@ -1,6 +1,7 @@
 package muse
 
 import (
+	"fmt"
 	"log"
 	"os/exec"
 
@@ -21,6 +22,9 @@ type Session struct {
 
 	// OnAsyncError is called on both nil and non-nil.
 	OnAsyncError func(error)
+
+	nextSong string
+	stopped  bool
 }
 
 func NewSession() (*Session, error) {
@@ -29,17 +33,53 @@ func NewSession() (*Session, error) {
 
 // PlayTrack asynchronously loads and plays a file. An error is not returned
 // because mpv doesn't seem to return one regardless.
-func (s *Session) PlayTrack(path string) {
+func (s *Session) PlayTrack(path, next string) {
+	// We only need to play if the path to be loaded matches the path that's
+	// already next in the playlist. Unless we're not stopped when the song is
+	// changed, which possibly means that it's a user-requested action.
+	if !s.stopped || s.nextSong != path {
+		log.Println("Force loading path.")
+
+		if err := s.loadFile(path, false); err != nil {
+			log.Println("async loadfile failed:", err)
+			return
+		}
+
+		if err := s.SetPlay(true); err != nil {
+			log.Println("play failed:", err)
+		}
+	}
+
+	// Preload the next file.
+	s.nextSong = next
+	if next != "" {
+		if err := s.loadFile(next, true); err != nil {
+			log.Println("async loadfile next track failed:", err)
+			return
+		}
+	}
+
+	go func() {
+		count, err := s.Playback.Get("playlist-count")
+		log.Println("Playlist count:", count, err)
+
+		for i := 0; i < int(count.(float64)); i++ {
+			name, err := s.Playback.Get(fmt.Sprintf("playlist/%d/filename", i))
+			log.Printf("Track %d: %s %v\n", i, name, err)
+		}
+	}()
+}
+
+func (s *Session) loadFile(file string, toAppend bool) (err error) {
 	errFn := func(v interface{}, err error) { s.OnAsyncError(err) }
 
-	if err := s.Playback.CallAsync(errFn, "async", "loadfile", path); err != nil {
-		log.Println("async loadfile failed:", err)
-		return
+	if toAppend {
+		err = s.Playback.CallAsync(errFn, "async", "loadfile", file, "append")
+	} else {
+		err = s.Playback.CallAsync(errFn, "async", "loadfile", file)
 	}
 
-	if err := s.SetPlay(true); err != nil {
-		log.Println("play failed:", err)
-	}
+	return
 }
 
 func (s *Session) Seek(pos float64) error {

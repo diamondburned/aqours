@@ -328,7 +328,7 @@ func (s *State) Play(index int) *Track {
 		defer s.onUpdate(s)
 	}
 
-	return s.playFromPlaylist(index)
+	return s.trackFromPlaylist(index)
 }
 
 func (s *State) playFromQueue(index int) *Track {
@@ -339,10 +339,10 @@ func (s *State) playFromQueue(index int) *Track {
 	defer s.onUpdate(s)
 
 	s.playing.QueuePos = index
-	return s.playFromPlaylist(s.playing.Queue[index])
+	return s.trackFromPlaylist(s.playing.Queue[index])
 }
 
-func (s *State) playFromPlaylist(index int) *Track {
+func (s *State) trackFromPlaylist(index int) *Track {
 	// Ensure that we have an active playing playlist.
 	failIf(s.playing.Playlist == nil, "playing.Playlist is nil while Play is called")
 	// Assert the state after modifying the index.
@@ -374,8 +374,20 @@ func (s *State) AutoNext() (int, *Track) {
 	return s.move(true, false)
 }
 
+// Peek returns the next track without changing the state. It basically emulates
+// AutoNext.
+func (s *State) Peek() (int, *Track) {
+	return s.peek(true, false)
+}
+
 // move is an abstracted function used by Prev, Next and AutoNext.
 func (s *State) move(forward, force bool) (int, *Track) {
+	next, track := s.peek(forward, force)
+	s.playing.QueuePos = next
+	return next, track
+}
+
+func (s *State) peek(forward, force bool) (int, *Track) {
 	s.assertCoherentState()
 
 	if !force && s.repeating == RepeatSingle {
@@ -388,7 +400,7 @@ func (s *State) move(forward, force bool) (int, *Track) {
 		return -1, nil
 	}
 
-	return next, s.playFromQueue(next)
+	return next, s.trackFromPlaylist(next)
 }
 
 // spinIndex spins the index. It returns the newly spun index and whether it was

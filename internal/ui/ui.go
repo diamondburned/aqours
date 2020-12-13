@@ -321,7 +321,12 @@ func (w *MainWindow) UpdateTracks(playlist *state.Playlist) {
 }
 
 func (w *MainWindow) playTrack(track *state.Track) {
-	w.muse.PlayTrack(track.Filepath)
+	var nextPath string
+	if _, nextTrack := w.state.Peek(); nextTrack != nil {
+		nextPath = nextTrack.Filepath
+	}
+
+	w.muse.PlayTrack(track.Filepath, nextPath)
 	playing := w.state.PlayingPlaylist()
 
 	trackList, ok := w.Body.TracksView.Lists[playing.Name]

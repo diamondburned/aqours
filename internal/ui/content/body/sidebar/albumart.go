@@ -80,7 +80,7 @@ func FetchAlbumArt(track *state.Track, size int) *gdk.Pixbuf {
 
 	l, err := gdk.PixbufLoaderNewWithType(f.Extension)
 	if err != nil {
-		log.Println("PixbufLoaderNewWithType failed with jpeg:", err)
+		log.Printf("PixbufLoaderNewWithType failed with %q: %v\n", f.Extension, err)
 		return nil
 	}
 	defer l.Close()

@@ -69,7 +69,8 @@ func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 	tree.AppendColumn(newColumn("Album", columnAlbum))
 	tree.AppendColumn(newColumn("", columnTime))
 	tree.AppendColumn(newColumn("", columnSelected))
-	tree.SetSearchColumn(tree.AppendColumn(newColumn("", columnSearchData)))
+	tree.AppendColumn(newColumn("", columnSearchData))
+	tree.SetSearchColumn(columnSearchData)
 	tree.Show()
 
 	s, _ := tree.GetSelection()
