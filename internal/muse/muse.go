@@ -1,7 +1,6 @@
 package muse
 
 import (
-	"fmt"
 	"log"
 	"os/exec"
 
@@ -58,16 +57,6 @@ func (s *Session) PlayTrack(path, next string) {
 			return
 		}
 	}
-
-	go func() {
-		count, err := s.Playback.Get("playlist-count")
-		log.Println("Playlist count:", count, err)
-
-		for i := 0; i < int(count.(float64)); i++ {
-			name, err := s.Playback.Get(fmt.Sprintf("playlist/%d/filename", i))
-			log.Printf("Track %d: %s %v\n", i, name, err)
-		}
-	}()
 }
 
 func (s *Session) loadFile(file string, toAppend bool) (err error) {
