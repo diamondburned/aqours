@@ -22,6 +22,7 @@ var coverFiles = []string{
 	"cover.png",
 	"front.jpg",
 	"front.png",
+	"Cover.jpg",
 
 	"AlbumArtSmall.jpg",
 	"Folder.jpg",

@@ -45,15 +45,20 @@ func (t *Track) ForceProbe() error {
 		return err
 	}
 
-	t.Title = stringOr(p.Format.Tags["title"], t.Title)
-	t.Artist = stringOr(p.Format.Tags["artist"], t.Artist)
-	t.Album = stringOr(p.Format.Tags["album"], t.Album)
-	t.Number = intOr(p.Format.Tags["track"], t.Number)
-	t.Bitrate = intOr(p.Format.BitRate, t.Bitrate)
+	title := p.TagValue("title")
 
-	if secs, err := strconv.ParseFloat(p.Format.Duration, 64); err == nil {
-		t.Length = time.Duration(secs * float64(time.Second))
+	// Try and keep the old metadata the same, as playlist loaders might somehow
+	// derive it.
+	if title == "" {
+		return nil
 	}
+
+	t.Title = title
+	t.Artist = p.TagValue("artist")
+	t.Album = p.TagValue("album")
+	t.Number = p.TagValueInt("track", t.Number)
+	t.Bitrate = p.Format.BitRate
+	t.Length = time.Duration(p.Format.Duration * float64(time.Second))
 
 	return nil
 }

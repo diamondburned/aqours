@@ -49,6 +49,8 @@ func (s *Session) PlayTrack(path, next string) {
 		}
 	}
 
+	s.stopped = false
+
 	// Preload the next file.
 	s.nextSong = next
 	if next != "" {
@@ -76,6 +78,7 @@ func (s *Session) Seek(pos float64) error {
 }
 
 func (s *Session) SetPlay(playing bool) error {
+	s.stopped = false
 	return s.Playback.SetAsync("pause", !playing, s.OnAsyncError)
 }
 

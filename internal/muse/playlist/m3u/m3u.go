@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/diamondburned/aqours/internal/muse/playlist"
@@ -92,9 +93,11 @@ func makeDotfile(path string) string {
 	return filepath.Join(dir, fmt.Sprintf(".%s.bak", name))
 }
 
+var slashesc = strings.NewReplacer("/", "∕", `\`, "⧵").Replace
+
 func pathFromName(path, name string) string {
 	dirnm := filepath.Dir(path)
-	fname := fmt.Sprintf("%s.m3u", url.PathEscape(name))
+	fname := fmt.Sprintf("%s.m3u", slashesc(name))
 	return filepath.Join(dirnm, fname)
 }
 

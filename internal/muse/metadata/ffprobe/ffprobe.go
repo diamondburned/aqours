@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,7 +21,9 @@ func Probe(path string) (*ProbeResult, error) {
 		"-loglevel", "fatal",
 		"-print_format", "json",
 		"-read_intervals", "%+1us",
-		"-show_format", path,
+		"-show_format",
+		"-show_streams", "-select_streams", "a:0",
+		path,
 	)
 	cmd.Stderr = os.Stderr
 
@@ -45,21 +48,47 @@ func Probe(path string) (*ProbeResult, error) {
 }
 
 type ProbeResult struct {
-	Format Format `json:"format"`
+	Format  Format   `json:"format"`
+	Streams []Stream `json:"streams"`
+}
+
+// TagValue searches the given key name in all possible tags in the format and
+// all streams.
+func (res ProbeResult) TagValue(name string) string {
+	if v, ok := res.Format.Tags[name]; ok {
+		return v
+	}
+
+	for _, stream := range res.Streams {
+		if v, ok := stream.Tags[name]; ok {
+			return v
+		}
+	}
+
+	return ""
+}
+
+func (res ProbeResult) TagValueInt(name string, orInt int) int {
+	v := res.TagValue(name)
+	i, err := strconv.Atoi(v)
+	if err != nil {
+		return orInt
+	}
+	return i
 }
 
 type Format struct {
-	Filename       string `json:"filename"`
-	NbStreams      int    `json:"nb_streams"`
-	NbPrograms     int    `json:"nb_programs"`
-	FormatName     string `json:"format_name"`
-	FormatLongName string `json:"format_long_name"`
-	StartTime      string `json:"start_time"`
-	Duration       string `json:"duration"`
-	Size           string `json:"size"`
-	BitRate        string `json:"bit_rate"`
-	ProbeScore     int    `json:"probe_score"`
-	Tags           Tags   `json:"tags"`
+	Duration float64 `json:"duration,string"`
+	BitRate  int     `json:"bit_rate,string"`
+	Tags     Tags    `json:"tags"`
+}
+
+type Stream struct {
+	CodecName     string `json:"codec_name"`
+	SampleRate    int    `json:"sample_rate,string"`
+	Channels      int    `json:"channels"`
+	ChannelLayout string `json:"channel_layout"`
+	Tags          Tags   `json:"tags"`
 }
 
 type Tags map[string]string
