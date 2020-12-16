@@ -2,12 +2,13 @@ package albumart
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
+	"sync"
 
 	"github.com/dhowden/tag"
 )
@@ -46,21 +47,61 @@ func (f File) IsValid() bool {
 
 // AlbumArt queries for an album art. It returns an invalid File if there is no
 // album art. The function may read the album art into memory.
-func AlbumArt(path string) File {
+//
+// The given context will directly control the returned file. If the context is
+// cancelled, then the file is also closed.
+func AlbumArt(ctx context.Context, path string) File {
 	// Prioritize searching for external album arts over reading the album art
 	// into memory.
 	dir := filepath.Dir(path)
 
-	for _, coverFile := range coverFiles {
-		f, err := os.Open(filepath.Join(dir, coverFile))
-		if err != nil {
-			continue
-		}
+	openCtx, cancelOpen := context.WithCancel(ctx)
+	defer cancelOpen()
 
-		return File{
-			ReadCloser: f,
-			Extension:  normalizeExt(filepath.Ext(coverFile)),
-		}
+	waitGroup := sync.WaitGroup{}
+	waitGroup.Add(len(coverFiles))
+
+	go func() {
+		waitGroup.Wait()
+		cancelOpen()
+	}()
+
+	results := make(chan File)
+
+	for _, coverFile := range coverFiles {
+		go func(coverFile string) {
+			defer waitGroup.Done()
+
+			f, err := os.Open(filepath.Join(dir, coverFile))
+			if err != nil {
+				return
+			}
+
+			// Stop prematurely.
+			cancelOpen()
+
+			// Close the file when the context is done.
+			closeWhenDone(ctx, f)
+
+			file := File{
+				ReadCloser: f,
+				Extension:  normalizeExt(filepath.Ext(coverFile)),
+			}
+
+			select {
+			case results <- file:
+				// done
+			case <-ctx.Done():
+				f.Close()
+			}
+		}(coverFile)
+	}
+
+	select {
+	case file := <-results:
+		return file
+	case <-openCtx.Done():
+		// continue
 	}
 
 	f, err := os.Open(path)
@@ -69,8 +110,7 @@ func AlbumArt(path string) File {
 	}
 	defer f.Close()
 
-	// Use a 1 minute timeout.
-	f.SetDeadline(time.Now().Add(time.Minute))
+	closeWhenDone(ctx, f)
 
 	m, err := tag.ReadFrom(f)
 	if err == nil {
@@ -83,6 +123,10 @@ func AlbumArt(path string) File {
 	}
 
 	return File{}
+}
+
+func closeWhenDone(ctx context.Context, f *os.File) {
+	go func() { <-ctx.Done(); f.Close() }()
 }
 
 func normalizeExt(ext string) string {

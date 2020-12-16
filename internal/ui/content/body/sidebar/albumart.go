@@ -1,8 +1,10 @@
 package sidebar
 
 import (
+	"context"
 	"io"
 	"log"
+	"time"
 
 	"github.com/diamondburned/aqours/internal/muse/albumart"
 	"github.com/diamondburned/aqours/internal/state"
@@ -18,6 +20,8 @@ type AlbumArt struct {
 	gtk.Revealer
 	Path  string
 	Image *gtk.Image
+
+	stopLoading context.CancelFunc
 }
 
 const AlbumArtSize = 192
@@ -37,8 +41,9 @@ func NewAlbumArt() *AlbumArt {
 	rev.Show()
 
 	aa := &AlbumArt{
-		Revealer: *rev,
-		Image:    img,
+		Revealer:    *rev,
+		Image:       img,
+		stopLoading: func() {}, // stub
 	}
 
 	aa.SetTrack(nil)
@@ -53,10 +58,16 @@ func (aa *AlbumArt) SetTrack(track *state.Track) {
 		return
 	}
 
+	aa.stopLoading()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	aa.stopLoading = cancel
+
 	aa.Path = track.Filepath
 
 	go func() {
-		p := FetchAlbumArt(track, AlbumArtSize)
+		defer cancel()
+
+		p := FetchAlbumArt(ctx, track, AlbumArtSize)
 		if p == nil {
 			return
 		}
@@ -70,8 +81,8 @@ func (aa *AlbumArt) SetTrack(track *state.Track) {
 	}()
 }
 
-func FetchAlbumArt(track *state.Track, size int) *gdk.Pixbuf {
-	var f = albumart.AlbumArt(track.Filepath)
+func FetchAlbumArt(ctx context.Context, track *state.Track, size int) *gdk.Pixbuf {
+	var f = albumart.AlbumArt(ctx, track.Filepath)
 	if !f.IsValid() {
 		return nil
 	}
@@ -89,8 +100,8 @@ func FetchAlbumArt(track *state.Track, size int) *gdk.Pixbuf {
 		l.SetSize(MaxSize(w, h, size, size))
 	})
 
+	// Trivial error that we can't handle.
 	if _, err := io.Copy(l, f.ReadCloser); err != nil {
-		log.Println("Failed to write to pixbuf:", err)
 		return nil
 	}
 

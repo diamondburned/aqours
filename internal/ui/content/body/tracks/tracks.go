@@ -1,10 +1,12 @@
 package tracks
 
 import (
+	"context"
 	"fmt"
 	"html"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/diamondburned/aqours/internal/durafmt"
 	"github.com/diamondburned/aqours/internal/state"
@@ -164,40 +166,56 @@ var trackTooltipImageCSS = css.PrepareClass("track-tooltip-image", `
 `)
 
 type trackTooltipBox struct {
-	tooltip   *gtk.Tooltip
 	image     *gdk.Pixbuf
 	trackPath string
+	stopFetch context.CancelFunc
 }
 
 func newTrackTooltipBox() *trackTooltipBox {
-	return &trackTooltipBox{}
+	return &trackTooltipBox{
+		stopFetch: func() {}, // stub
+	}
 }
 
 func (tt *trackTooltipBox) Attach(t *gtk.Tooltip, track *state.Track) {
 	mdata := track.Metadata()
 
-	if tt.trackPath != mdata.Filepath {
+	newTrack := tt.trackPath != mdata.Filepath
+	if newTrack {
+		tt.trackPath = mdata.Filepath
 		tt.image = nil
 	}
-
-	tt.trackPath = mdata.Filepath
 
 	if tt.image != nil {
 		t.SetIcon(tt.image)
 	} else {
 		t.SetIconFromIconName("folder-music-symbolic", AlbumIconSize)
-		go func() {
-			p := sidebar.FetchAlbumArt(track, PixelIconSize)
-			if p == nil {
-				return
-			}
-			glib.IdleAdd(func() {
-				if tt.trackPath == mdata.Filepath {
-					t.SetIcon(p)
-					tt.image = p
+
+		// Gtk is very, VERY dumb, so it'll try and fetch an album art just by
+		// hovering the cursor on things. I simply cannot fix stupidity of this
+		// level, so just deal with the fd spam. At least I have a context to
+		// cancel things.
+		if newTrack {
+			tt.stopFetch()
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			tt.stopFetch = cancel
+
+			go func() {
+				defer cancel()
+
+				p := sidebar.FetchAlbumArt(ctx, track, PixelIconSize)
+				if p == nil {
+					return
 				}
-			})
-		}()
+
+				glib.IdleAdd(func() {
+					if tt.trackPath == mdata.Filepath {
+						tt.image = p
+						t.SetIcon(p)
+					}
+				})
+			}()
+		}
 	}
 
 	var builder strings.Builder
