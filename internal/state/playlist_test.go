@@ -92,8 +92,8 @@ func TestRemove(t *testing.T) {
 		{
 			name: "multiple between + last",
 			apply: func(t *testing.T, pl *Playlist) {
-				pl.Tracks = emptyTracks("1", "2", "3", "4")
-				pl.Remove(2, 3)
+				pl.Tracks = emptyTracks("1", "2", "3", "4", "5", "6", "7", "8")
+				pl.Remove(2, 3, 4, 5, 6, 7)
 			},
 			expect: emptyTracks("1", "2"),
 		},

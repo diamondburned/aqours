@@ -10,7 +10,12 @@ import (
 	"github.com/gotk3/gotk3/pango"
 )
 
-var titleCSS = css.PrepareClass("title", "")
+var titleCSS = css.PrepareClass("title", `
+	label.now-playing.title {
+		color: @theme_fg_color;
+		font-weight: bold;
+	}
+`)
 
 var subtitleCSS = css.PrepareClass("subtitle", `
 	label.now-playing.subtitle {

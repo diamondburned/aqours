@@ -28,6 +28,7 @@ var coverFiles = []string{
 	"AlbumArtSmall.jpg",
 	"Folder.jpg",
 	"Folder.png",
+	"folder.jpg",
 	".folder.png",
 	"thumb.jpg",
 
@@ -77,12 +78,6 @@ func AlbumArt(ctx context.Context, path string) File {
 				return
 			}
 
-			// Stop prematurely.
-			cancelOpen()
-
-			// Close the file when the context is done.
-			closeWhenDone(ctx, f)
-
 			file := File{
 				ReadCloser: f,
 				Extension:  normalizeExt(filepath.Ext(coverFile)),
@@ -90,8 +85,12 @@ func AlbumArt(ctx context.Context, path string) File {
 
 			select {
 			case results <- file:
+				// Stop prematurely.
+				cancelOpen()
+				// Close the file when the context is done.
+				closeWhenDone(ctx, f)
 				// done
-			case <-ctx.Done():
+			case <-openCtx.Done():
 				f.Close()
 			}
 		}(coverFile)

@@ -3,6 +3,8 @@ package tracks
 import (
 	"log"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/diamondburned/aqours/internal/state"
@@ -10,6 +12,7 @@ import (
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/pkg/errors"
 )
 
 type TrackPath = string
@@ -142,26 +145,30 @@ func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 	tree.EnableModelDragDest(trackListDragTargets, gdk.ACTION_LINK)
 	tree.Connect("drag-data-received",
 		func(_ gtk.IWidget, ctx *gdk.DragContext, x, y int, data *gtk.SelectionData) {
+			if data.GetLength() == 0 {
+				return
+			}
+			// Get the files in form of line-delimited URIs
+			var uris = string(data.GetData())
+
 			path, pos, ok := tree.GetDestRowAtPos(x, y)
 			if !ok {
 				log.Println("No path found at dragged pos.")
 				return
 			}
 
-			// Get the files in form of line-delimited URIs
-			var uris string
-			if data.GetLength() > 0 {
-				uris = string(data.GetData())
-			}
+			before := false ||
+				pos == gtk.TREE_VIEW_DROP_BEFORE ||
+				pos == gtk.TREE_VIEW_DROP_INTO_OR_BEFORE
 
-			var paths = parseURIList(uris)
+			go func() {
+				var paths = parseURIList(uris)
+				if len(paths) == 0 {
+					return
+				}
 
-			if len(paths) > 0 {
-				before := false ||
-					pos == gtk.TREE_VIEW_DROP_BEFORE ||
-					pos == gtk.TREE_VIEW_DROP_INTO_OR_BEFORE
-				list.addTracksAt(path, before, paths)
-			}
+				glib.IdleAdd(func() { list.addTracksAt(path, before, paths) })
+			}()
 		},
 	)
 
@@ -230,7 +237,7 @@ func parseURIList(list string) []string {
 	var uris = strings.Fields(list)
 
 	// Create a path slice that we decode URIs into.
-	var paths = uris[:0]
+	var paths = make([]string, 0, len(uris))
 
 	// Decode the URIs.
 	for _, uri := range uris {
@@ -239,14 +246,46 @@ func parseURIList(list string) []string {
 			log.Printf("Failed parsing URI %q: %v\n", uri, err)
 			continue
 		}
-		if u.Scheme != "file" {
-			log.Println("Unknown file scheme (only locals):", u.Scheme)
+		if u.Scheme != "file" && u.Scheme != "" {
+			log.Printf("Unknown file URI scheme (only locals): %q\n", uri)
 			continue
 		}
-		paths = append(paths, u.Path)
+
+		if err := readDirOrFile(u.Path, &paths); err != nil {
+			log.Printf("Failed to read %q: %v\n", u.Path, err)
+		}
 	}
 
 	return paths
+}
+
+func readDirOrFile(path string, dest *[]string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return errors.Wrap(err, "failed to open file")
+	}
+	defer f.Close()
+
+	s, err := f.Stat()
+	if err != nil {
+		return errors.Wrap(err, "file stat failed while drag-and-drop")
+	}
+
+	if !s.IsDir() {
+		*dest = append(*dest, path)
+		return nil
+	}
+
+	files, err := f.Readdirnames(0)
+	if err != nil {
+		return errors.Wrap(err, "failed to read dir names")
+	}
+
+	for _, file := range files {
+		*dest = append(*dest, filepath.Join(path, file))
+	}
+
+	return nil
 }
 
 func (list *TrackList) addTracksAt(path *gtk.TreePath, before bool, paths []string) {
