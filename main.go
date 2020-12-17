@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"sync"
@@ -38,12 +39,10 @@ func main() {
 		singleInstance.Do(func() { deconstructor = activate(app) })
 	})
 
-	exitCode := app.Run(os.Args)
+	defer func() { deconstructor() }()
 
-	deconstructor()
-
-	if exitCode > 0 {
-		os.Exit(exitCode)
+	if exitCode := app.Run(os.Args); exitCode > 0 {
+		panic(fmt.Sprintf("exit status %d", exitCode))
 	}
 }
 

@@ -331,14 +331,11 @@ func (s *State) Play(index int) *Track {
 	return s.trackFromPlaylist(index)
 }
 
-func (s *State) playFromQueue(index int) *Track {
+func (s *State) trackFromQueue(index int) *Track {
 	// Bound check.
 	failIf(index < 0, "index is negative")
 	failIf(index >= len(s.playing.Queue), "given index is out of bounds in Play")
 
-	defer s.onUpdate(s)
-
-	s.playing.QueuePos = index
 	return s.trackFromPlaylist(s.playing.Queue[index])
 }
 
@@ -384,6 +381,7 @@ func (s *State) Peek() (int, *Track) {
 func (s *State) move(forward, force bool) (int, *Track) {
 	next, track := s.peek(forward, force)
 	s.playing.QueuePos = next
+	s.onUpdate(s)
 	return next, track
 }
 
@@ -400,7 +398,7 @@ func (s *State) peek(forward, force bool) (int, *Track) {
 		return -1, nil
 	}
 
-	return next, s.trackFromPlaylist(next)
+	return next, s.trackFromQueue(next)
 }
 
 // spinIndex spins the index. It returns the newly spun index and whether it was

@@ -52,16 +52,18 @@ type ProbeResult struct {
 	Streams []Stream `json:"streams"`
 }
 
+var escaper = strings.NewReplacer("\n", `↵`)
+
 // TagValue searches the given key name in all possible tags in the format and
 // all streams.
 func (res ProbeResult) TagValue(name string) string {
 	if v, ok := res.Format.Tags[name]; ok {
-		return v
+		return escaper.Replace(v)
 	}
 
 	for _, stream := range res.Streams {
 		if v, ok := stream.Tags[name]; ok {
-			return v
+			return escaper.Replace(v)
 		}
 	}
 

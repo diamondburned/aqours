@@ -54,6 +54,8 @@ const (
 	columnSearchData
 )
 
+const maxDataSize = 10 * 1024 * 1024 // 10MB
+
 func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 	store, _ := gtk.ListStoreNew(
 		glib.TYPE_STRING, // columnTitle
@@ -145,7 +147,7 @@ func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 	tree.EnableModelDragDest(trackListDragTargets, gdk.ACTION_LINK)
 	tree.Connect("drag-data-received",
 		func(_ gtk.IWidget, ctx *gdk.DragContext, x, y int, data *gtk.SelectionData) {
-			if data.GetLength() == 0 {
+			if dataLen := data.GetLength(); dataLen < 1 || dataLen > maxDataSize {
 				return
 			}
 			// Get the files in form of line-delimited URIs
@@ -161,13 +163,17 @@ func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 				pos == gtk.TREE_VIEW_DROP_BEFORE ||
 				pos == gtk.TREE_VIEW_DROP_INTO_OR_BEFORE
 
+			tree.SetSensitive(false)
+
 			go func() {
 				var paths = parseURIList(uris)
-				if len(paths) == 0 {
-					return
-				}
 
-				glib.IdleAdd(func() { list.addTracksAt(path, before, paths) })
+				glib.IdleAdd(func() {
+					tree.SetSensitive(true)
+					if len(paths) > 0 {
+						list.addTracksAt(path, before, paths)
+					}
+				})
 			}()
 		},
 	)
