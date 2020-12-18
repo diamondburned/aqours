@@ -230,6 +230,10 @@ func (w *MainWindow) SaveAllPlaylists() {
 }
 
 func (w *MainWindow) SavePlaylist(pl *state.Playlist) {
+	if !pl.IsUnsaved() {
+		return
+	}
+
 	refresh := func() {
 		w.Header.SetUnsaved(pl)
 		w.Body.Sidebar.PlaylistList.SetUnsaved(pl)

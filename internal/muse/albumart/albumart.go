@@ -31,6 +31,7 @@ var coverFiles = []string{
 	"folder.jpg",
 	".folder.png",
 	"thumb.jpg",
+	"Thumb.jpg",
 
 	"front.bmp",
 	"front.gif",
