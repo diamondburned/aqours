@@ -12,7 +12,7 @@ require (
 	github.com/DexterLB/mpvipc v0.0.0-20190216161438-2a226fa01bbd
 	github.com/dhowden/tag v0.0.0-20200828214007-46e57f75dbfc
 	github.com/diamondburned/audpl v0.0.0-20201107052523-20d1b6c126e7
-	github.com/diamondburned/catnip-gtk v0.0.0-20201217214603-f2b900e40c61
+	github.com/diamondburned/catnip-gtk v0.0.0-20201220024321-df08ac4eae1c
 	github.com/diamondburned/handy v0.0.0-20200829011954-4667e7a918f4
 	github.com/go-test/deep v1.0.7
 	github.com/godbus/dbus v4.1.0+incompatible

@@ -235,7 +235,7 @@ func (s *State) PlayingPlaylistName() string {
 func (s *State) NowPlaying() (int, *Track) {
 	s.assertCoherentState()
 
-	if s.playing.Playlist == nil {
+	if s.playing.Playlist == nil || s.playing.QueuePos < 0 {
 		return -1, nil
 	}
 
@@ -380,8 +380,11 @@ func (s *State) Peek() (int, *Track) {
 // move is an abstracted function used by Prev, Next and AutoNext.
 func (s *State) move(forward, force bool) (int, *Track) {
 	next, track := s.peek(forward, force)
-	s.playing.QueuePos = next
-	s.onUpdate(s)
+	// Only update the progress if we have something else to play.
+	if next > -1 {
+		s.playing.QueuePos = next
+		s.onUpdate(s)
+	}
 	return next, track
 }
 
