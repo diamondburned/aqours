@@ -26,12 +26,12 @@ func microsecondsToSeconds(usec microsecond) float64 {
 	return float64(usec) / us
 }
 
-func trackID(playlist *state.Playlist, trackIx int) dbus.ObjectPath {
-	if playlist == nil || trackIx < 0 {
+func trackID(trackIx int) dbus.ObjectPath {
+	if trackIx < 0 {
 		return dbus.ObjectPath("/org/mpris/MediaPlayer2/TrackList/NoTrack")
 	}
-	const trackIDfmt = tracksPath + "/%s/%d"
-	return dbus.ObjectPath(fmt.Sprintf(trackIDfmt, playlist.Name, trackIx))
+	const trackIDfmt = tracksPath + "/%d"
+	return dbus.ObjectPath(fmt.Sprintf(trackIDfmt, trackIx))
 }
 
 type player struct {
@@ -106,7 +106,7 @@ func (p *player) sendProp(n string, v interface{}) {
 // Muse event handler methods.
 
 var noTrackMetadata = map[string]interface{}{
-	"mpris:trackid": trackID(nil, -1),
+	"mpris:trackid": trackID(-1),
 }
 
 // I hate implementing this, and I hate dbus. I hate its design. Why the fuck
@@ -139,9 +139,7 @@ func (p *player) OnPauseUpdate(pause bool) {
 
 func (p *player) sendPlaying(state *state.State) {
 	i, track := state.NowPlaying()
-	playlist := state.PlayingPlaylist()
-
-	p.trackID = trackID(playlist, i)
+	p.trackID = trackID(i)
 
 	// If we don't have anything playing...
 	if track == nil {

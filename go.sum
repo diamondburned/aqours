@@ -18,6 +18,8 @@ github.com/diamondburned/catnip-gtk v0.0.0-20201217214603-f2b900e40c61 h1:nIxtjX
 github.com/diamondburned/catnip-gtk v0.0.0-20201217214603-f2b900e40c61/go.mod h1:5k4F52K0RwTVzNAIjhqxbsAO2iJLOEGUTlM/8vGNDB8=
 github.com/diamondburned/catnip-gtk v0.0.0-20201220024321-df08ac4eae1c h1:ShHwscX+6GLlDJg92ddIdeIPKesYFVGtb7wJbC+69AU=
 github.com/diamondburned/catnip-gtk v0.0.0-20201220024321-df08ac4eae1c/go.mod h1:5k4F52K0RwTVzNAIjhqxbsAO2iJLOEGUTlM/8vGNDB8=
+github.com/diamondburned/catnip-gtk v0.0.0-20201221031315-2ccff4fd7882 h1:FAm9ojj8yFpLfZS3B5emCU/jk82VyY8KXfcOzHYepgc=
+github.com/diamondburned/catnip-gtk v0.0.0-20201221031315-2ccff4fd7882/go.mod h1:G62TFAIrKOj3cPqaFEyJ5uGjdavIfjYzx/sh8ijwS/U=
 github.com/diamondburned/gotk3 v0.0.0-20201122055630-6008556661ea h1:U5XL8xNSboILY28p/Ou0GNX5J+B2I9ZZKAm4Mwg6Di8=
 github.com/diamondburned/gotk3 v0.0.0-20201122055630-6008556661ea/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
 github.com/diamondburned/gotk3 v0.0.0-20201125221322-4028816f3fce h1:e6+u7nl+gqHo7i6dDBIG/sZsH4JCzJ3fITLScRdaWaU=
@@ -34,6 +36,8 @@ github.com/diamondburned/mpvipc v0.0.0-20201209233959-abc9af4dc0af h1:ieA6nTXvTf
 github.com/diamondburned/mpvipc v0.0.0-20201209233959-abc9af4dc0af/go.mod h1:MOb+Drd+EFz0VPj7rIvOWoXSujs55jAL7MGCUQIrM7M=
 github.com/diamondburned/tavis v0.0.0-20201107024128-229ebc1a9c2b h1:JOCSfrw8Q6EDcJzeumF9Jjlr3ATaKEIRSZ1JVGpAXig=
 github.com/diamondburned/tavis v0.0.0-20201107024128-229ebc1a9c2b/go.mod h1:PhwRw+u4VahyvQ/4LwTo/oy/04XKO+t4/Cyw1DMIQYU=
+github.com/diamondburned/tavis v0.0.0-20201220224209-811c4fa04049 h1:cneUvN8TAzIgy0SJvShSZapU+Gu8cVzeHzwmLBnkTE4=
+github.com/diamondburned/tavis v0.0.0-20201220224209-811c4fa04049/go.mod h1:PhwRw+u4VahyvQ/4LwTo/oy/04XKO+t4/Cyw1DMIQYU=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/go-test/deep v1.0.7 h1:/VSMRlnY/JSyqxQUzQLKVMAskpY/NZKFA5j2P+0pP2M=
 github.com/go-test/deep v1.0.7/go.mod h1:QV8Hv/iy04NyLBxAdO9njL0iVPN1S4d/A3NVv1V36o8=
@@ -48,6 +52,8 @@ github.com/lawl/pulseaudio v0.0.0-20200802093727-ab0735955fd0 h1:JrvOwrr1teFiqsp
 github.com/lawl/pulseaudio v0.0.0-20200802093727-ab0735955fd0/go.mod h1:9h36x4KH7r2V8DOCKoPMt87IXZ++X90y8D5nnuwq290=
 github.com/mattn/go-runewidth v0.0.9/go.mod h1:H031xJmbD/WCDINGzjvQ9THkh0rPKHF+m2gUSrubnMI=
 github.com/mitchellh/go-wordwrap v1.0.0/go.mod h1:ZXFpozHsX6DPmq2I0TCekCxypsnAUbP2oI0UX1GXzOo=
+github.com/noriah/catnip v1.0.1-0.20201104094429-58c624d9af1f h1:Y0FgXJSLvCVfgVGHFO7HPDpEwsIax7f4vN/ec+thHDo=
+github.com/noriah/catnip v1.0.1-0.20201104094429-58c624d9af1f/go.mod h1:PhwRw+u4VahyvQ/4LwTo/oy/04XKO+t4/Cyw1DMIQYU=
 github.com/nsf/termbox-go v0.0.0-20200418040025-38ba6e5628f1/go.mod h1:IuKpRQcYE1Tfu+oAQqaLisqDeXgjyyltCfsaoYN18NQ=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
