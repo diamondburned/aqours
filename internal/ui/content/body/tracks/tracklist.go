@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/diamondburned/aqours/internal/state"
@@ -30,8 +31,7 @@ type TrackList struct {
 
 	playing *state.Track
 
-	menu    *gtk.Menu
-	refresh *gtk.MenuItem
+	menu *gtk.Menu
 }
 
 var trackListDragTargets = []gtk.TargetEntry{
@@ -179,23 +179,20 @@ func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 	)
 
 	tree.Connect("key-press-event", func(_ gtk.IWidget, ev *gdk.Event) bool {
-		kp := gdk.EventKeyNewFromEvent(ev)
-
-		switch kp.KeyVal() {
-		case gdk.KEY_Delete:
-			list.removeSelected()
-			return true
-		default:
-			return false
-		}
+		return list.handleKeyEvent(gdk.EventKeyNewFromEvent(ev))
 	})
 
-	list.refresh, _ = gtk.MenuItemNewWithLabel("Refresh Metadata")
-	list.refresh.Show()
-	list.refresh.Connect("activate", list.refreshSelected)
+	refresh, _ := gtk.MenuItemNewWithLabel("Refresh Metadata")
+	refresh.Show()
+	refresh.Connect("activate", list.refreshSelected)
+
+	sortTracks, _ := gtk.MenuItemNewWithLabel("Sort")
+	sortTracks.Show()
+	sortTracks.Connect("activate", list.sortSelectedTracks)
 
 	list.menu, _ = gtk.MenuNew()
-	list.menu.Add(list.refresh)
+	list.menu.Add(refresh)
+	list.menu.Add(sortTracks)
 
 	tree.Connect("button-press-event", func(_ gtk.IWidget, ev *gdk.Event) bool {
 		bp := gdk.EventButtonNewFromEvent(ev)
@@ -294,6 +291,31 @@ func readDirOrFile(path string, dest *[]string) error {
 	return nil
 }
 
+func (list *TrackList) handleKeyEvent(evk *gdk.EventKey) bool {
+	keyVal := evk.KeyVal()
+	keyMod := gdk.ModifierType(evk.State())
+
+	switch keyVal {
+	case gdk.KEY_Delete:
+		list.removeSelected()
+		return true
+	}
+
+	if modIsPressed(keyMod, gdk.CONTROL_MASK) {
+		switch keyVal {
+		case gdk.KEY_S: // Ctrl+S
+			list.parent.SavePlaylist(list.Playlist)
+			return true
+		}
+	}
+
+	return false
+}
+
+func modIsPressed(mod, press gdk.ModifierType) bool {
+	return mod&press == press
+}
+
 func (list *TrackList) addTracksAt(path *gtk.TreePath, before bool, paths []string) {
 	ix := path.GetIndices()[0]
 
@@ -327,19 +349,54 @@ func (list *TrackList) removeSelected() {
 
 	selected.Foreach(func(v interface{}) {
 		path := v.(*gtk.TreePath)
-		// Only count valid iters. This should most of the time be valid, but we
-		// want to be sure.
-		if iter, err := list.Store.GetIter(path); err == nil {
-			list.Store.Remove(iter)
-			selectIx = append(selectIx, path.GetIndices()[0])
-		}
+		selectIx = append(selectIx, path.GetIndices()[0])
 	})
 
 	if len(selectIx) == 0 {
 		return
 	}
 
+	for _, ix := range selectIx {
+		track := list.Playlist.Tracks[ix]
+		trRow := list.TrackRows[track]
+
+		delete(list.TrackRows, track)
+		list.Store.Remove(trRow.Iter)
+	}
+
 	list.Playlist.Remove(selectIx...)
+	list.parent.UpdateTracks(list.Playlist)
+}
+
+func (list *TrackList) sortSelectedTracks() {
+	selected := list.Select.GetSelectedRows(list.Store)
+	selectMin := -1
+	selectMax := -1
+
+	selected.Foreach(func(v interface{}) {
+		path := v.(*gtk.TreePath)
+		ix := path.GetIndices()[0]
+
+		// Get max and min bounds without allocating a slice.
+		if selectMin == -1 || ix < selectMin {
+			selectMin = ix
+		}
+		if selectMax == -1 || ix > selectMax {
+			selectMax = ix
+		}
+	})
+
+	list.sortTracksBounds(selectMin, selectMax)
+}
+
+func (list *TrackList) sortTracksBounds(start, end int) {
+	// Exit if we have nothing.
+	if start == end {
+		return
+	}
+
+	sorter := newTrackSorter(list, start, end)
+	sort.Stable(sorter)
 	list.parent.UpdateTracks(list.Playlist)
 }
 

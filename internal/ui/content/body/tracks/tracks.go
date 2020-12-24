@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 type ParentController interface {
 	gtk.IWindow
 	PlayTrack(p *state.Playlist, index int)
+	SavePlaylist(p *state.Playlist)
 	UpdateTracks(p *state.Playlist)
 }
 
@@ -222,6 +224,7 @@ func (tt *trackTooltipBox) Attach(t *gtk.Tooltip, track *state.Track) {
 	writeHTMLField(&builder, "<b>Title:</b> %s\n", mdata.Title)
 	writeHTMLField(&builder, "<b>Artist:</b> %s\n", mdata.Artist)
 	writeHTMLField(&builder, "<b>Album:</b> %s\n", mdata.Album)
+	writeHTMLField(&builder, "<b>Number:</b> %s\n", strconv.Itoa(mdata.Number))
 	writeHTMLField(&builder, "<b>Length:</b> %s\n", durafmt.Format(mdata.Length))
 	writeHTMLField(&builder,
 		"<b>Filepath:</b> <span insert-hyphens=\"false\">%s</span>",

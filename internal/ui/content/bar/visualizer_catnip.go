@@ -19,7 +19,7 @@ import (
 
 // FrameRate is the frame rate for the visualizer. The higher it is, the less
 // accurate the visualization is.
-const FrameRate = 50
+const FrameRate = 60
 
 func newCatnip(container *Container, backend, device string) PausedSetter {
 	config := catnip.NewConfig()
@@ -29,12 +29,12 @@ func newCatnip(container *Container, backend, device string) PausedSetter {
 	config.Device = device
 	config.BarWidth = 4      // decent size
 	config.SpaceWidth = 1    // decent size
-	config.SmoothFactor = 42 // magic number!
+	config.SmoothFactor = 45 // magic number!
 	config.MinimumClamp = 4  // hide bars that are too low
 	config.ForceEven = true  // sharpen the bars
 	config.Symmetry = catnip.Horizontal
-	config.WindowFn = catnip.WrapExternalWindowFn(window.Blackman)
-	config.AntiAlias = cairo.ANTIALIAS_NONE
+	config.WindowFn = catnip.WrapExternalWindowFn(window.Hamming)
+	config.AntiAlias = cairo.ANTIALIAS_FAST
 	config.Monophonic = false
 
 	// Make the foreground transparent.
