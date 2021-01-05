@@ -26,6 +26,8 @@ func main() {
 		log.Fatalln("Failed to create a GtkApplication:", err)
 	}
 
+	log.SetFlags(log.Lmicroseconds | log.Ltime)
+
 	// GtkApplication's single instance API is weird: it uses some DBus IPC
 	// fuckery to trigger activate a second time. We could use Go's sync.Once to
 	// keep ensuring single-instance.

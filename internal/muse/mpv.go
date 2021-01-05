@@ -119,8 +119,6 @@ RetryOpen:
 		return nil, errors.Wrap(err, "failed to open connection")
 	}
 
-	log.Println("Connection established at", sockPath)
-
 	for _, event := range events {
 		_, err := conn.Call("enable_event", event)
 		if err != nil {
@@ -199,10 +197,10 @@ func (s *Session) Start() {
 			// glib.IdleAdd(func() { handler.OnSongFinish() })
 
 		case "end-file":
-			log.Printf(
-				"End of file, reason: %q, error: %q %v\n",
-				event.Reason, event.Error, event.Data,
-			)
+			// log.Printf(
+			// 	"End of file, reason: %q, error: %q %v\n",
+			// 	event.Reason, event.Error, event.Data,
+			// )
 			// Empty reason means not end of file. Don't do anything.
 			// Sometimes, when a track ends or we change the track, this
 			// event is fired with an empty reason. Thankfully, we could
@@ -212,6 +210,8 @@ func (s *Session) Start() {
 			// For some reason, the stop event behaves a bit erratically.
 			if event.Reason != "" && event.Reason != "stop" {
 				glib.IdleAdd(func() {
+					timePosition = 0
+					timeRemaining = 0
 					s.stopped = true
 					handler.OnSongFinish()
 				})

@@ -55,9 +55,8 @@ type Seek struct {
 	SeekBar   *gtk.Scale
 	TotalTime *gtk.Label
 
-	adj     *gtk.Adjustment
-	total   float64
-	spinner uint8
+	adj   *gtk.Adjustment
+	total float64 // rounded
 }
 
 func NewSeek(parent ParentController) *Seek {
@@ -107,19 +106,10 @@ const secondFloat = float64(time.Second)
 
 func (s *Seek) UpdatePosition(pos, total float64) {
 	s.setTotal(math.Round(total))
+	s.adj.SetValue(math.Min(pos, s.total))
 
-	if s.shouldUpdate() {
-		s.adj.SetValue(pos)
-
-		posDuration := time.Duration(pos * secondFloat)
-		s.Position.SetMarkup(smallText(durafmt.Format(posDuration)))
-	}
-}
-
-func (s *Seek) shouldUpdate() bool {
-	spin := s.spinner
-	s.spinner = (s.spinner + 1) % updateSeekEvery
-	return spin == 0
+	posDuration := time.Duration(pos * secondFloat)
+	s.Position.SetMarkup(smallText(durafmt.Format(posDuration)))
 }
 
 func (s *Seek) setTotal(total float64) {
