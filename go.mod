@@ -2,7 +2,7 @@ module github.com/diamondburned/aqours
 
 go 1.15
 
-replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20201209182406-e7291341a091
+replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20210111000904-1ca828e76b5d
 
 replace github.com/DexterLB/mpvipc => github.com/diamondburned/mpvipc v0.0.0-20201209233959-abc9af4dc0af
 
@@ -12,12 +12,13 @@ require (
 	github.com/DexterLB/mpvipc v0.0.0-20190216161438-2a226fa01bbd
 	github.com/dhowden/tag v0.0.0-20200828214007-46e57f75dbfc
 	github.com/diamondburned/audpl v0.0.0-20201107052523-20d1b6c126e7
-	github.com/diamondburned/catnip-gtk v0.0.0-20201221031315-2ccff4fd7882
-	github.com/diamondburned/handy v0.0.0-20200829011954-4667e7a918f4
+	github.com/diamondburned/catnip-gtk v0.0.0-20210111022154-cca6c20192b0
+	github.com/diamondburned/handy v0.0.0-20201229063418-ec23c1370374
 	github.com/go-test/deep v1.0.7
 	github.com/godbus/dbus v4.1.0+incompatible
 	github.com/godbus/dbus/v5 v5.0.3
 	github.com/gotk3/gotk3 v0.5.1-0.20201028052159-952547abf55a
+	github.com/lithammer/fuzzysearch v1.1.1
 	github.com/noriah/catnip v1.0.1-0.20201104094429-58c624d9af1f
 	github.com/pkg/errors v0.9.1
 	github.com/ushis/m3u v0.0.0-20150127162843-94396b784733

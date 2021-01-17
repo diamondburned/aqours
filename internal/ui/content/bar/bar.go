@@ -23,7 +23,7 @@ type Container struct {
 	Volume     *Volume
 }
 
-func NewContainer(parent ParentController) *Container {
+func NewContainer(parent VisualizerController) *Container {
 	nowpl := NewNowPlaying(parent)
 	nowpl.Show()
 

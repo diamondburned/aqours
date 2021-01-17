@@ -13,6 +13,7 @@ import (
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/lithammer/fuzzysearch/fuzzy"
 	"github.com/pkg/errors"
 )
 
@@ -41,6 +42,11 @@ var trackListDragTargets = []gtk.TargetEntry{
 func targetEntry(target string, f gtk.TargetFlags, info uint) gtk.TargetEntry {
 	e, _ := gtk.TargetEntryNew(target, f, info)
 	return *e
+}
+
+// searchFuzzy implements TreeViewSearchEqualFunc.
+func searchFuzzy(m *gtk.TreeModel, col int, k string, it *gtk.TreeIter) bool {
+	return !fuzzy.MatchNormalizedFold(k, m.GetStringFromIter(it))
 }
 
 type columnType = int
@@ -76,6 +82,7 @@ func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 	tree.AppendColumn(newColumn("", columnSelected))
 	tree.AppendColumn(newColumn("", columnSearchData))
 	tree.SetSearchColumn(columnSearchData)
+	tree.SetSearchEqualFunc(searchFuzzy)
 	tree.Show()
 
 	s, _ := tree.GetSelection()

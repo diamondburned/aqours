@@ -160,7 +160,7 @@ func NewRepeat(parent ParentController) *Repeat {
 		singleIcon:   singleIcon,
 	}
 
-	repeat.handleID, _ = button.Connect("toggled", func() {
+	repeat.handleID = button.Connect("toggled", func() {
 		parent.SetRepeat(repeat.state.Cycle())
 	})
 

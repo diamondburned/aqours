@@ -19,7 +19,7 @@ import (
 
 // FrameRate is the frame rate for the visualizer. The higher it is, the less
 // accurate the visualization is.
-const FrameRate = 60
+const FrameRate = 100
 
 func newCatnip(container *Container, backend, device string) PausedSetter {
 	config := catnip.NewConfig()
@@ -28,31 +28,33 @@ func newCatnip(container *Container, backend, device string) PausedSetter {
 	config.Backend = backend // TODO: FIXME
 	config.Device = device
 	config.BarWidth = 4      // decent size
-	config.SpaceWidth = 1    // decent size
-	config.SmoothFactor = 45 // magic number!
+	config.SpaceWidth = 1.5  // decent size
+	config.SmoothFactor = 20 // smoothing is kind of slow so we don't do much of that
 	config.MinimumClamp = 4  // hide bars that are too low
-	config.ForceEven = true  // sharpen the bars
+	config.ForceEven = false
 	config.Symmetry = catnip.Horizontal
 	config.WindowFn = catnip.WrapExternalWindowFn(window.Hamming)
-	config.AntiAlias = cairo.ANTIALIAS_FAST
+	config.AntiAlias = cairo.ANTIALIAS_NONE
 	config.Monophonic = false
 
 	// Make the foreground transparent.
 	styleCtx, _ := container.GetStyleContext()
 	foregroundC := styleCtx.GetColor(gtk.STATE_FLAG_NORMAL).Floats()
 
+	const blend = 35 / 100.0 // 35%
+
 	config.Colors.Foreground = color.RGBA{
-		R: uint8(foregroundC[0] * 0xFF),
-		G: uint8(foregroundC[1] * 0xFF),
-		B: uint8(foregroundC[2] * 0xFF),
-		A: 255 / 6, // 16.7%
+		R: uint8(foregroundC[0] * 0xFF * blend),
+		G: uint8(foregroundC[1] * 0xFF * blend),
+		B: uint8(foregroundC[2] * 0xFF * blend),
+		A: 0xFF,
 	}
 
 	drawer := catnip.NewDrawer(container, config)
 	drawer.SetWidgetStyle(container)
 	drawer.ConnectDestroy(container)
 
-	hID, _ := drawer.ConnectDraw(container)
+	hID := drawer.ConnectDraw(container)
 	destroyed := false
 
 	// Mark the container as destroyed. This way, the handler doesn't get

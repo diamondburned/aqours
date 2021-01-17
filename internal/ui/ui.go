@@ -165,7 +165,7 @@ func (w *MainWindow) OnSongFinish() {
 }
 
 func (w *MainWindow) OnPauseUpdate(pause bool) {
-	w.Vis.Drawer.SetPaused(pause)
+	w.Vis.SetPaused(pause)
 	w.Bar.Controls.Buttons.Play.SetPlaying(!pause)
 
 	if pause {

@@ -9,3 +9,5 @@ func newCatnip(c *Container, backend, device string) PausedSetter {
 type nullVisualizer struct{}
 
 func (nullVisualizer) SetPaused(paused bool) {}
+
+func (nullVisualizer) stub() {}

@@ -1,6 +1,7 @@
 package bar
 
 import (
+	"fmt"
 	"log"
 	"runtime/debug"
 
@@ -9,15 +10,76 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 )
 
+type VisualizerStatus uint8
+
+const (
+	VisualizerOnlyPlaying VisualizerStatus = iota // default
+	VisualizerAlwaysOn
+	VisualizerMuted
+	visualizerStatusLen
+)
+
+func (vs VisualizerStatus) IsPaused(paused bool) bool {
+	switch vs {
+	case VisualizerMuted:
+		return true
+	case VisualizerAlwaysOn:
+		return false
+	case VisualizerOnlyPlaying:
+		fallthrough
+	default:
+		return paused
+	}
+}
+
+func (vs VisualizerStatus) String() string {
+	switch vs {
+	case VisualizerMuted:
+		return "Muted"
+	case VisualizerOnlyPlaying:
+		return "Only when Playing"
+	case VisualizerAlwaysOn:
+		return "Always On"
+	default:
+		return fmt.Sprintf("VisualizerStatus(%d)", vs)
+	}
+}
+
+func (vs VisualizerStatus) cycle() VisualizerStatus {
+	return (vs + 1) % visualizerStatusLen
+}
+
+func (vs VisualizerStatus) icon() string {
+	switch vs {
+	case VisualizerMuted:
+		return "microphone-sensitivity-muted-symbolic"
+	case VisualizerAlwaysOn:
+		return "microphone-sensitivity-high-symbolic"
+	case VisualizerOnlyPlaying:
+		fallthrough
+	default:
+		return "microphone-sensitivity-medium-symbolic"
+	}
+}
+
+type VisualizerController interface {
+	ParentController
+	SetVisualize(visualize VisualizerStatus)
+}
+
 type Volume struct {
 	gtk.Box
+
+	VisIcon   *gtk.Image
+	Visualize *gtk.Button
 
 	Icon   *gtk.Image
 	Mute   *gtk.ToggleButton
 	Slider *gtk.Scale
 
-	volume float64
-	muted  bool
+	volume    float64
+	muted     bool
+	visualize VisualizerStatus
 }
 
 var volumeSliderCSS = css.PrepareClass("volume-slider", `
@@ -27,7 +89,9 @@ var volumeSliderCSS = css.PrepareClass("volume-slider", `
 	}
 `)
 
-var muteButtonCSS = css.PrepareClass("mute-button", `
+var muteButtonCSS = css.PrepareClass("mute-button", ``)
+
+var rightButtonCSS = css.PrepareClass("right-button", `
 	button {
 		margin:  0;
 		color:   @theme_fg_color;
@@ -41,7 +105,16 @@ var muteButtonCSS = css.PrepareClass("mute-button", `
 	}
 `)
 
-func NewVolume(parent ParentController) *Volume {
+func NewVolume(parent VisualizerController) *Volume {
+	visIcon, _ := gtk.ImageNew()
+	visIcon.Show()
+
+	visualize, _ := gtk.ButtonNew()
+	visualize.SetRelief(gtk.RELIEF_NONE)
+	visualize.SetImage(visIcon)
+	visualize.Show()
+	rightButtonCSS(visualize)
+
 	icon, _ := gtk.ImageNew()
 	icon.Show()
 
@@ -50,6 +123,7 @@ func NewVolume(parent ParentController) *Volume {
 	mute.SetImage(icon)
 	mute.Show()
 	muteButtonCSS(mute)
+	rightButtonCSS(mute)
 
 	slider, _ := gtk.ScaleNewWithRange(gtk.ORIENTATION_HORIZONTAL, 0, 100, 1)
 	slider.SetSizeRequest(100, -1)
@@ -59,6 +133,7 @@ func NewVolume(parent ParentController) *Volume {
 	volumeSliderCSS(slider)
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
+	box.PackStart(visualize, false, false, 0)
 	box.PackStart(mute, false, false, 0)
 	box.PackStart(slider, true, true, 0)
 	box.SetVAlign(gtk.ALIGN_CENTER)
@@ -66,17 +141,26 @@ func NewVolume(parent ParentController) *Volume {
 	box.SetHExpand(true)
 
 	volume := &Volume{
-		Box:    *box,
-		Icon:   icon,
-		Mute:   mute,
-		Slider: slider,
-		volume: 100,
-		muted:  false,
+		Box:       *box,
+		VisIcon:   visIcon,
+		Visualize: visualize,
+		Icon:      icon,
+		Mute:      mute,
+		Slider:    slider,
+		volume:    100,
+		muted:     false,
+		visualize: VisualizerOnlyPlaying,
 	}
 
 	mute.SetActive(volume.muted)
 	slider.SetValue(volume.volume)
 	volume.updateIcon()
+
+	visualize.Connect("clicked", func() {
+		volume.visualize = volume.visualize.cycle()
+		volume.updateIcon()
+		parent.SetVisualize(volume.visualize)
+	})
 
 	mute.Connect("toggled", func() {
 		volume.muted = mute.GetActive()
@@ -110,7 +194,22 @@ func (v *Volume) IsMuted() bool {
 	return v.muted
 }
 
+// VisualizerStatus returns the internal visualizer status.
+func (v *Volume) VisualizerStatus() VisualizerStatus {
+	return v.visualize
+}
+
 func (v *Volume) updateIcon() {
+	v.updateVisualizeIcon()
+	v.updateVolumeIcon()
+}
+
+func (v *Volume) updateVisualizeIcon() {
+	v.VisIcon.SetFromIconName(v.visualize.icon(), gtk.ICON_SIZE_BUTTON)
+	v.Visualize.SetTooltipText(v.visualize.String())
+}
+
+func (v *Volume) updateVolumeIcon() {
 	var icon string
 
 	switch {
