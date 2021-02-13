@@ -6,13 +6,13 @@ replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20210111
 
 replace github.com/DexterLB/mpvipc => github.com/diamondburned/mpvipc v0.0.0-20201209233959-abc9af4dc0af
 
-replace github.com/noriah/catnip => github.com/diamondburned/tavis v0.0.0-20201220224209-811c4fa04049
+replace github.com/noriah/catnip => github.com/diamondburned/tavis v0.0.0-20210213063943-442356061e51
 
 require (
 	github.com/DexterLB/mpvipc v0.0.0-20190216161438-2a226fa01bbd
 	github.com/dhowden/tag v0.0.0-20200828214007-46e57f75dbfc
 	github.com/diamondburned/audpl v0.0.0-20201107052523-20d1b6c126e7
-	github.com/diamondburned/catnip-gtk v0.0.0-20210111022154-cca6c20192b0
+	github.com/diamondburned/catnip-gtk v0.0.0-20210213061322-bbc92bc4a87e
 	github.com/diamondburned/handy v0.0.0-20201229063418-ec23c1370374
 	github.com/go-test/deep v1.0.7
 	github.com/godbus/dbus v4.1.0+incompatible

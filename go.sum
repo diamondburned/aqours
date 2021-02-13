@@ -22,6 +22,8 @@ github.com/diamondburned/catnip-gtk v0.0.0-20201221031315-2ccff4fd7882 h1:FAm9oj
 github.com/diamondburned/catnip-gtk v0.0.0-20201221031315-2ccff4fd7882/go.mod h1:G62TFAIrKOj3cPqaFEyJ5uGjdavIfjYzx/sh8ijwS/U=
 github.com/diamondburned/catnip-gtk v0.0.0-20210111022154-cca6c20192b0 h1:m3VkyUWHEf0VtjpNStSasClmd7vetQmElzr7pL07j5M=
 github.com/diamondburned/catnip-gtk v0.0.0-20210111022154-cca6c20192b0/go.mod h1:bEfoPrHKBEBcgx1iz+Y8SaS+poeWEr4YD2qBCxwf6nI=
+github.com/diamondburned/catnip-gtk v0.0.0-20210213061322-bbc92bc4a87e h1:hhDDGXXWiNmCCBt22T/5o+O/vfEQBVS0x+/qUHoHngU=
+github.com/diamondburned/catnip-gtk v0.0.0-20210213061322-bbc92bc4a87e/go.mod h1:BC2PBKFLvg0H8QvgEpVGOC5RL64w/f6zB1PqP9KNCfY=
 github.com/diamondburned/gotk3 v0.0.0-20201122055630-6008556661ea h1:U5XL8xNSboILY28p/Ou0GNX5J+B2I9ZZKAm4Mwg6Di8=
 github.com/diamondburned/gotk3 v0.0.0-20201122055630-6008556661ea/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
 github.com/diamondburned/gotk3 v0.0.0-20201125221322-4028816f3fce h1:e6+u7nl+gqHo7i6dDBIG/sZsH4JCzJ3fITLScRdaWaU=
@@ -46,6 +48,10 @@ github.com/diamondburned/tavis v0.0.0-20201107024128-229ebc1a9c2b h1:JOCSfrw8Q6E
 github.com/diamondburned/tavis v0.0.0-20201107024128-229ebc1a9c2b/go.mod h1:PhwRw+u4VahyvQ/4LwTo/oy/04XKO+t4/Cyw1DMIQYU=
 github.com/diamondburned/tavis v0.0.0-20201220224209-811c4fa04049 h1:cneUvN8TAzIgy0SJvShSZapU+Gu8cVzeHzwmLBnkTE4=
 github.com/diamondburned/tavis v0.0.0-20201220224209-811c4fa04049/go.mod h1:PhwRw+u4VahyvQ/4LwTo/oy/04XKO+t4/Cyw1DMIQYU=
+github.com/diamondburned/tavis v0.0.0-20210213055733-16d05c4ad4e5 h1:qzrXaUVlxTeDqlO1UUFEei/2b1K7kGz7wzipA3muHzI=
+github.com/diamondburned/tavis v0.0.0-20210213055733-16d05c4ad4e5/go.mod h1:PhwRw+u4VahyvQ/4LwTo/oy/04XKO+t4/Cyw1DMIQYU=
+github.com/diamondburned/tavis v0.0.0-20210213063943-442356061e51 h1:RXx2IwsZpasnnMusntNTq0QiUa45Dl5PHAjaRjyPtvU=
+github.com/diamondburned/tavis v0.0.0-20210213063943-442356061e51/go.mod h1:PhwRw+u4VahyvQ/4LwTo/oy/04XKO+t4/Cyw1DMIQYU=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/go-test/deep v1.0.7 h1:/VSMRlnY/JSyqxQUzQLKVMAskpY/NZKFA5j2P+0pP2M=
 github.com/go-test/deep v1.0.7/go.mod h1:QV8Hv/iy04NyLBxAdO9njL0iVPN1S4d/A3NVv1V36o8=

@@ -19,7 +19,7 @@ import (
 
 // FrameRate is the frame rate for the visualizer. The higher it is, the less
 // accurate the visualization is.
-const FrameRate = 100
+const FrameRate = 60
 
 func newCatnip(container *Container, backend, device string) PausedSetter {
 	config := catnip.NewConfig()
@@ -28,8 +28,8 @@ func newCatnip(container *Container, backend, device string) PausedSetter {
 	config.Backend = backend // TODO: FIXME
 	config.Device = device
 	config.BarWidth = 4      // decent size
-	config.SpaceWidth = 1.5  // decent size
-	config.SmoothFactor = 20 // smoothing is kind of slow so we don't do much of that
+	config.SpaceWidth = 1    // decent size
+	config.SmoothFactor = 55 // good smoothing
 	config.MinimumClamp = 4  // hide bars that are too low
 	config.ForceEven = false
 	config.Symmetry = catnip.Horizontal

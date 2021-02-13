@@ -9,6 +9,7 @@ import (
 	"github.com/diamondburned/aqours/internal/muse/albumart"
 	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui/css"
+	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
@@ -63,24 +64,44 @@ func (aa *AlbumArt) SetTrack(track *state.Track) {
 	aa.stopLoading = cancel
 
 	aa.Path = track.Filepath
+	scale := aa.Image.GetScaleFactor()
 
 	go func() {
 		defer cancel()
 
-		p := FetchAlbumArt(ctx, track, AlbumArtSize)
-		if p == nil {
+		surface := FetchAlbumArtScaled(ctx, track, AlbumArtSize, scale)
+		if surface == nil {
 			return
 		}
 
 		glib.IdleAdd(func() {
 			// Make sure that the album art is still displaying the same file.
 			if aa.Path == track.Filepath {
-				aa.Image.SetFromPixbuf(p)
+				aa.Image.SetFromSurface(surface)
 			}
 		})
 	}()
 }
 
+// FetchAlbumArtScaled fetches the track's album art into a scaled Cairo Surface
+// for HiDPI.
+func FetchAlbumArtScaled(ctx context.Context, track *state.Track, size, scale int) *cairo.Surface {
+	p := FetchAlbumArt(ctx, track, size*scale)
+	if p == nil {
+		return nil
+	}
+
+	c, err := gdk.CairoSurfaceCreateFromPixbuf(p, scale, nil)
+	if err != nil {
+		log.Println("Failed to get Cairo Surface from Pixbuf:", err)
+		return nil
+	}
+
+	return c
+}
+
+// FetchAlbumArt fetches the track's album art into a pixbuf with the given
+// size.
 func FetchAlbumArt(ctx context.Context, track *state.Track, size int) *gdk.Pixbuf {
 	var f = albumart.AlbumArt(ctx, track.Filepath)
 	if !f.IsValid() {
@@ -108,7 +129,7 @@ func FetchAlbumArt(ctx context.Context, track *state.Track, size int) *gdk.Pixbu
 	p, err := l.GetPixbuf()
 	if err != nil {
 		log.Println("Failed to get pixbuf:", err)
-		// Allow setting a nil pixbuf if we have an error.
+		return nil
 	}
 
 	return p

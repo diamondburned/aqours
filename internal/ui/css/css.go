@@ -30,6 +30,13 @@ func Prepare(css string) *gtk.CssProvider {
 	return p
 }
 
+// StyleContext gets the style context from the given contexter. Nil is
+// returned on any error.
+func StyleContext(ctx StyleContexter) *gtk.StyleContext {
+	v, _ := ctx.GetStyleContext()
+	return v
+}
+
 var cssRepos = map[string]*gtk.CssProvider{}
 
 func getDefaultScreen() *gdk.Screen {
