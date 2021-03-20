@@ -3,11 +3,13 @@ package muse
 import (
 	"context"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/DexterLB/mpvipc"
@@ -44,7 +46,6 @@ type EventHandler interface {
 	OnSongFinish()
 	OnPauseUpdate(pause bool)
 	OnBitrateChange(bitrate float64)
-	OnPositionChange(pos, total float64)
 }
 
 var tmpdir = filepath.Join(os.TempDir(), "aqours")
@@ -136,6 +137,7 @@ RetryOpen:
 	return &Session{
 		Playback:   conn,
 		Command:    cmd,
+		PlayTime:   &TimeContainer{},
 		socketPath: sockPath,
 		OnAsyncError: func(err error) {
 			if err != nil {
@@ -155,10 +157,6 @@ func (s *Session) Start() {
 	// Copy the handler so the caller cannot change it.
 	var handler = s.handler
 
-	// This is kind of racy, but that's about as good as "event-based" as we
-	// can get.
-	var timeRemaining, timePosition float64
-
 	s.Playback.ListenForEvents(func(event *mpvipc.Event) {
 		if event.Data == nil {
 			goto handleAllEvents
@@ -177,12 +175,10 @@ func (s *Session) Start() {
 			glib.IdleAdd(func() { handler.OnBitrateChange(i) })
 
 		case timePositionEvent:
-			timePosition = event.Data.(float64)
-			position, total := timePosition, timePosition+timeRemaining
-			glib.IdleAdd(func() { handler.OnPositionChange(position, total) })
+			s.PlayTime.updatePos(event.Data.(float64))
 
 		case timeRemainingEvent:
-			timeRemaining = event.Data.(float64)
+			s.PlayTime.updateRem(event.Data.(float64))
 
 		case audioDeviceEvent:
 			log.Println("Audio device changed to", event.Data)
@@ -209,9 +205,10 @@ func (s *Session) Start() {
 			//
 			// For some reason, the stop event behaves a bit erratically.
 			if event.Reason != "" && event.Reason != "stop" {
+				s.PlayTime.updatePos(0)
+				s.PlayTime.updateRem(0)
+
 				glib.IdleAdd(func() {
-					timePosition = 0
-					timeRemaining = 0
 					s.stopped = true
 					handler.OnSongFinish()
 				})
@@ -240,4 +237,25 @@ func (s *Session) Stop() {
 	if err := os.Remove(s.socketPath); err != nil {
 		log.Println("Failed to clean up socket:", err)
 	}
+}
+
+// TimeContainer wraps an atomic time container.
+type TimeContainer struct {
+	pos uint64
+	rem uint64
+}
+
+func (tc *TimeContainer) updatePos(pos float64) {
+	atomic.StoreUint64(&tc.pos, math.Float64bits(pos))
+}
+
+func (tc *TimeContainer) updateRem(rem float64) {
+	atomic.StoreUint64(&tc.rem, math.Float64bits(rem))
+}
+
+// Load reads the timestamp atomically.
+func (tc *TimeContainer) Load() (pos, rem float64) {
+	pos = math.Float64frombits(atomic.LoadUint64(&tc.pos))
+	rem = math.Float64frombits(atomic.LoadUint64(&tc.rem))
+	return
 }

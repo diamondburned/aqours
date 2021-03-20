@@ -7,14 +7,11 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/diamondburned/aqours/internal/durafmt"
 	"github.com/diamondburned/aqours/internal/state"
-	"github.com/diamondburned/aqours/internal/ui/content/body/sidebar"
 	"github.com/diamondburned/aqours/internal/ui/css"
 	"github.com/gotk3/gotk3/gdk"
-	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
 )
@@ -188,37 +185,40 @@ func (tt *trackTooltipBox) Attach(t *gtk.Tooltip, track *state.Track) {
 		tt.image = nil
 	}
 
-	if tt.image != nil {
-		t.SetIcon(tt.image)
-	} else {
-		t.SetIconFromIconName("folder-music-symbolic", AlbumIconSize)
+	// TODO: album art fetchign is very expensive. Until we can reduce the call
+	// frequency, we should absolutely not do this.
 
-		// Gtk is very, VERY dumb, so it'll try and fetch an album art just by
-		// hovering the cursor on things. I simply cannot fix stupidity of this
-		// level, so just deal with the fd spam. At least I have a context to
-		// cancel things.
-		if newTrack {
-			tt.stopFetch()
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			tt.stopFetch = cancel
+	// if tt.image != nil {
+	// 	t.SetIcon(tt.image)
+	// } else {
+	// 	t.SetIconFromIconName("folder-music-symbolic", AlbumIconSize)
 
-			go func() {
-				defer cancel()
+	// 	// Gtk is very, VERY dumb, so it'll try and fetch an album art just by
+	// 	// hovering the cursor on things. I simply cannot fix stupidity of this
+	// 	// level, so just deal with the fd spam. At least I have a context to
+	// 	// cancel things.
+	// 	if newTrack {
+	// 		tt.stopFetch()
+	// 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// 		tt.stopFetch = cancel
 
-				p := sidebar.FetchAlbumArt(ctx, track, PixelIconSize)
-				if p == nil {
-					return
-				}
+	// 		go func() {
+	// 			defer cancel()
 
-				glib.IdleAdd(func() {
-					if tt.trackPath == mdata.Filepath {
-						tt.image = p
-						t.SetIcon(p)
-					}
-				})
-			}()
-		}
-	}
+	// 			p := sidebar.FetchAlbumArt(ctx, track, PixelIconSize)
+	// 			if p == nil {
+	// 				return
+	// 			}
+
+	// 			glib.IdleAdd(func() {
+	// 				if tt.trackPath == mdata.Filepath {
+	// 					tt.image = p
+	// 					t.SetIcon(p)
+	// 				}
+	// 			})
+	// 		}()
+	// 	}
+	// }
 
 	var builder strings.Builder
 	writeHTMLField(&builder, "<b>Title:</b> %s\n", mdata.Title)

@@ -59,30 +59,38 @@ type MainWindow struct {
 	skipCount  int
 }
 
-func NewMainWindow(a *gtk.Application, session *muse.Session, s *state.State) (*MainWindow, error) {
-	w, err := gtk.ApplicationWindowNew(a)
+func NewMainWindow(
+	a *gtk.Application, session *muse.Session, s *state.State) (*MainWindow, error) {
+
+	window, err := gtk.ApplicationWindowNew(a)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create window")
 	}
-	w.SetTitle("Aqours")
-	w.SetDefaultSize(800, 500)
+	window.SetTitle("Aqours")
+	window.SetDefaultSize(800, 500)
 
-	mw := &MainWindow{
-		ApplicationWindow: *w,
+	w := &MainWindow{
+		ApplicationWindow: *window,
 		muse:              session,
 	}
 
-	mw.Header = header.NewContainer(mw)
-	mw.Header.Show()
+	w.Header = header.NewContainer(w)
+	w.Header.Show()
+	w.SetTitlebar(w.Header)
 
-	w.SetTitlebar(mw.Header)
+	w.Container = content.NewContainer(w)
+	w.Add(w.ContentBox)
 
-	mw.Container = content.NewContainer(mw)
-	w.Add(mw.ContentBox)
+	w.useState(s)
 
-	mw.useState(s)
+	// Use a low-priority poller instead of updating live.
+	glib.TimeoutSecondsAddPriority(1, glib.PRIORITY_DEFAULT_IDLE, func() bool {
+		pos, rem := session.PlayTime.Load()
+		w.Bar.Controls.Seek.UpdatePosition(pos, pos+rem)
+		return true
+	})
 
-	return mw, nil
+	return w, nil
 }
 
 // State exposes the local state that was passed in.
@@ -139,6 +147,9 @@ func (w *MainWindow) GoBack() { w.Body.SwipeBack() }
 // nil, then it'll gradually seek to the next song until either no error is
 // given anymore or the error counter hits its max.
 func (w *MainWindow) OnSongFinish() {
+	// Seek the bar back to 0 immediately.
+	w.Bar.Controls.Seek.UpdatePosition(0, 0)
+
 	now := time.Now()
 
 	// Are we going too quickly?
@@ -178,7 +189,6 @@ func (w *MainWindow) OnBitrateChange(bitrate float64) {
 }
 
 func (w *MainWindow) OnPositionChange(pos, total float64) {
-	w.Bar.Controls.Seek.UpdatePosition(pos, total)
 }
 
 func (w *MainWindow) AddPlaylist(path string) {
