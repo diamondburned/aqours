@@ -85,12 +85,20 @@ func NewMainWindow(
 
 	// Use a low-priority poller instead of updating live.
 	glib.TimeoutSecondsAddPriority(1, glib.PRIORITY_DEFAULT_IDLE, func() bool {
-		pos, rem := session.PlayTime.Load()
+		pos, rem := session.PlayState.PlayTime()
 		w.Bar.Controls.Seek.UpdatePosition(pos, pos+rem)
+
+		w.Header.SetBitrate(session.PlayState.Bitrate())
+
 		return true
 	})
 
 	return w, nil
+}
+
+// PlaySession returns the internal playback session.
+func (w *MainWindow) PlaySession() *muse.Session {
+	return w.muse
 }
 
 // State exposes the local state that was passed in.
@@ -182,13 +190,6 @@ func (w *MainWindow) OnPauseUpdate(pause bool) {
 	if pause {
 		w.Header.SetBitrate(-1)
 	}
-}
-
-func (w *MainWindow) OnBitrateChange(bitrate float64) {
-	w.Header.SetBitrate(bitrate)
-}
-
-func (w *MainWindow) OnPositionChange(pos, total float64) {
 }
 
 func (w *MainWindow) AddPlaylist(path string) {

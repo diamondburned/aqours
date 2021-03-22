@@ -42,9 +42,9 @@ func NewContainer(parent VisualizerController) *Container {
 	grid.SetColumnSpacing(5)
 	grid.SetHExpand(true)
 
-	grid.Attach(nowpl, 0, 0, 1, 1)    // 1st column
-	grid.Attach(controls, 1, 0, 2, 1) // 2nd-3rd; span 2 columns
-	grid.Attach(vol, 3, 0, 1, 1)      // 4th column
+	grid.Attach(nowpl, 0, 0, 2, 1)    // 1st column; 2 columns
+	grid.Attach(controls, 3, 0, 3, 1) // 2nd-3rd;    3 columns
+	grid.Attach(vol, 6, 0, 2, 1)      // 4th column; 2 columns
 	grid.Show()
 
 	return &Container{

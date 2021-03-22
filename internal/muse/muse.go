@@ -14,9 +14,9 @@ import (
 var ErrNoPlaylistLoaded = errors.New("no playlist loaded")
 
 type Session struct {
-	Playback *mpvipc.Connection
-	PlayTime *TimeContainer
-	Command  *exec.Cmd
+	Playback  *mpvipc.Connection
+	PlayState *PlayState
+	Command   *exec.Cmd
 
 	handler    EventHandler
 	socketPath string

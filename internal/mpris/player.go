@@ -40,8 +40,8 @@ type player struct {
 	stop  chan struct{}
 
 	// state
-	trackID  dbus.ObjectPath
-	position microsecond
+	trackID dbus.ObjectPath
+	// position microsecond
 }
 
 var _ muse.EventHandler = (*player)(nil)
@@ -159,11 +159,6 @@ func (p *player) sendPlaying(state *state.State) {
 	}
 }
 
-func (p *player) OnPositionChange(pos float64, total float64) {
-	p.MainWindow.OnPositionChange(pos, total)
-	p.position = secondsToMicroseconds(pos)
-}
-
 // DBus methods.
 
 func (p *player) Next() *dbus.Error {
@@ -196,7 +191,11 @@ func (p *player) PlayPause() *dbus.Error {
 }
 
 func (p *player) Seek(us microsecond) *dbus.Error {
-	pos := microsecondsToSeconds(p.position) + microsecondsToSeconds(us)
+	s := p.PlaySession()
+
+	pos, _ := s.PlayState.PlayTime()
+	pos += microsecondsToSeconds(us)
+
 	glib.IdleAdd(func() { p.MainWindow.Seek(pos) })
 	return nil
 }
@@ -209,5 +208,6 @@ func (p *player) SetPosition(id dbus.ObjectPath, us microsecond) *dbus.Error {
 			return
 		}
 	})
+
 	return nil
 }

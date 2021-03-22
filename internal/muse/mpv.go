@@ -45,7 +45,6 @@ var propertyMap = map[mpvEvent]string{
 type EventHandler interface {
 	OnSongFinish()
 	OnPauseUpdate(pause bool)
-	OnBitrateChange(bitrate float64)
 }
 
 var tmpdir = filepath.Join(os.TempDir(), "aqours")
@@ -136,8 +135,8 @@ RetryOpen:
 
 	return &Session{
 		Playback:   conn,
+		PlayState:  &PlayState{},
 		Command:    cmd,
-		PlayTime:   &TimeContainer{},
 		socketPath: sockPath,
 		OnAsyncError: func(err error) {
 			if err != nil {
@@ -171,14 +170,13 @@ func (s *Session) Start() {
 			glib.IdleAdd(func() { handler.OnPauseUpdate(b) })
 
 		case bitrateEvent:
-			i := event.Data.(float64)
-			glib.IdleAdd(func() { handler.OnBitrateChange(i) })
+			s.PlayState.updateBitrate(event.Data.(float64))
 
 		case timePositionEvent:
-			s.PlayTime.updatePos(event.Data.(float64))
+			s.PlayState.updatePos(event.Data.(float64))
 
 		case timeRemainingEvent:
-			s.PlayTime.updateRem(event.Data.(float64))
+			s.PlayState.updateRem(event.Data.(float64))
 
 		case audioDeviceEvent:
 			log.Println("Audio device changed to", event.Data)
@@ -205,8 +203,9 @@ func (s *Session) Start() {
 			//
 			// For some reason, the stop event behaves a bit erratically.
 			if event.Reason != "" && event.Reason != "stop" {
-				s.PlayTime.updatePos(0)
-				s.PlayTime.updateRem(0)
+				s.PlayState.updatePos(0)
+				s.PlayState.updateRem(0)
+				s.PlayState.updateBitrate(0)
 
 				glib.IdleAdd(func() {
 					s.stopped = true
@@ -239,22 +238,32 @@ func (s *Session) Stop() {
 	}
 }
 
-// TimeContainer wraps an atomic time container.
-type TimeContainer struct {
+// PlayState wraps the current playback state.
+type PlayState struct {
+	btr uint64
 	pos uint64
 	rem uint64
 }
 
-func (tc *TimeContainer) updatePos(pos float64) {
+func (tc *PlayState) updatePos(pos float64) {
 	atomic.StoreUint64(&tc.pos, math.Float64bits(pos))
 }
 
-func (tc *TimeContainer) updateRem(rem float64) {
+func (tc *PlayState) updateRem(rem float64) {
 	atomic.StoreUint64(&tc.rem, math.Float64bits(rem))
 }
 
-// Load reads the timestamp atomically.
-func (tc *TimeContainer) Load() (pos, rem float64) {
+func (tc *PlayState) updateBitrate(btr float64) {
+	atomic.StoreUint64(&tc.btr, math.Float64bits(btr))
+}
+
+// Bitrate reads the bitrate atomically.
+func (tc *PlayState) Bitrate() float64 {
+	return math.Float64frombits(atomic.LoadUint64(&tc.btr))
+}
+
+// PlayTime reads the playback timestamps atomically.
+func (tc *PlayState) PlayTime() (pos, rem float64) {
 	pos = math.Float64frombits(atomic.LoadUint64(&tc.pos))
 	rem = math.Float64frombits(atomic.LoadUint64(&tc.rem))
 	return

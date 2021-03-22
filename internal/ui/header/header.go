@@ -91,7 +91,7 @@ func (c *Container) Reset() {
 // SetBitrate sets the bitrate to display. The indicator is empty if bits is
 // less than 0.
 func (c *Container) SetBitrate(bits float64) {
-	if bits < 0 {
+	if bits < 1 {
 		c.Bitrate.SetText("")
 		return
 	}
