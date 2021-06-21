@@ -83,8 +83,8 @@ func NewMainWindow(
 
 	w.useState(s)
 
-	// Use a low-priority poller instead of updating live.
-	glib.TimeoutSecondsAddPriority(1, glib.PRIORITY_DEFAULT_IDLE, func() bool {
+	// Use a low-priority 250ms poller instead of updating live.
+	glib.TimeoutAddPriority(250, glib.PRIORITY_DEFAULT_IDLE, func() bool {
 		pos, rem := session.PlayState.PlayTime()
 		w.Bar.Controls.Seek.UpdatePosition(pos, pos+rem)
 

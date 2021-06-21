@@ -26,6 +26,7 @@ type Session struct {
 
 	nextSong string
 	stopped  bool
+	forced   bool
 }
 
 func NewSession() (*Session, error) {
@@ -39,6 +40,7 @@ func (s *Session) PlayTrack(path, next string) {
 	// already next in the playlist. Unless we're not stopped when the song is
 	// changed, which possibly means that it's a user-requested action.
 	if !s.stopped || s.nextSong != path {
+		s.forced = true
 		log.Println("Force loading path.")
 
 		if err := s.loadFile(path, false); err != nil {

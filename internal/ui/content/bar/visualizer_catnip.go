@@ -1,4 +1,4 @@
-// +build !nocatnip
+// +build catnip
 
 package bar
 
@@ -16,6 +16,9 @@ import (
 	_ "github.com/noriah/catnip/input/parec"
 	_ "github.com/noriah/catnip/input/portaudio"
 )
+
+// HasVisualizer is true, indicating aqours was built with catnip.
+const HasVisualizer = true
 
 // FrameRate is the frame rate for the visualizer. The higher it is, the less
 // accurate the visualization is.

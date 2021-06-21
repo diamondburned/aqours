@@ -11,6 +11,6 @@ as containing many bugs.
 - gtk3
 - mpv
 - ffmpeg
-- Building without tag `nocatnip` (visualizer):
+- Building with tag `catnip` (visualizer):
 	- parec or portaudio or ffmpeg
 	- fftw

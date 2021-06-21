@@ -1,7 +1,7 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import <unstable> {} }:
 
 pkgs.stdenv.mkDerivation rec {
-	name = "cchat-gtk";
+	name = "aqours";
 	version = "0.0.2";
 
 	buildInputs = with pkgs; [

@@ -112,7 +112,6 @@ func NewVolume(parent VisualizerController) *Volume {
 	visualize, _ := gtk.ButtonNew()
 	visualize.SetRelief(gtk.RELIEF_NONE)
 	visualize.SetImage(visIcon)
-	visualize.Show()
 	rightButtonCSS(visualize)
 
 	icon, _ := gtk.ImageNew()
@@ -133,7 +132,12 @@ func NewVolume(parent VisualizerController) *Volume {
 	volumeSliderCSS(slider)
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	box.PackStart(visualize, false, false, 0)
+
+	if HasVisualizer {
+		visualize.Show()
+		box.PackStart(visualize, false, false, 0)
+	}
+
 	box.PackStart(mute, false, false, 0)
 	box.PackStart(slider, true, true, 0)
 	box.SetVAlign(gtk.ALIGN_CENTER)

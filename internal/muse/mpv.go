@@ -68,7 +68,8 @@ func newMpv() (*Session, error) {
 		"--no-input-terminal",
 		"--loop-playlist=no",
 		"--gapless-audio=weak",
-		"--replaygain=album",
+		"--replaygain=track",
+		"--replaygain-clip=no",
 		"--ad=lavc:*",
 		"--input-ipc-server=" + sockPath,
 		"--volume=100",
@@ -157,6 +158,10 @@ func (s *Session) Start() {
 	var handler = s.handler
 
 	s.Playback.ListenForEvents(func(event *mpvipc.Event) {
+		if event.Error != "" {
+			log.Println("Error in event:", event.Error)
+		}
+
 		if event.Data == nil {
 			goto handleAllEvents
 		}
@@ -190,28 +195,24 @@ func (s *Session) Start() {
 			// log.Println("Player is idle.")
 			// glib.IdleAdd(func() { handler.OnSongFinish() })
 
-		case "end-file":
-			// log.Printf(
-			// 	"End of file, reason: %q, error: %q %v\n",
-			// 	event.Reason, event.Error, event.Data,
-			// )
-			// Empty reason means not end of file. Don't do anything.
-			// Sometimes, when a track ends or we change the track, this
-			// event is fired with an empty reason. Thankfully, we could
-			// also check for the "idle" event instead, so this event will
-			// be used more for errors.
-			//
-			// For some reason, the stop event behaves a bit erratically.
-			if event.Reason != "" && event.Reason != "stop" {
-				s.PlayState.updatePos(0)
-				s.PlayState.updateRem(0)
-				s.PlayState.updateBitrate(0)
+		case "start-file":
+			// For some reason, the end-file event behaves a bit erratically, so
+			// we use start-file.
+			s.PlayState.updatePos(0)
+			s.PlayState.updateRem(0)
+			s.PlayState.updateBitrate(0)
 
-				glib.IdleAdd(func() {
-					s.stopped = true
-					handler.OnSongFinish()
-				})
-			}
+			glib.IdleAdd(func() {
+				// Edge-case when we force playing; because we invoked this
+				// action, we don't trigger the callback.
+				if s.forced {
+					s.forced = false
+					return
+				}
+
+				s.stopped = true
+				handler.OnSongFinish()
+			})
 		}
 	})
 }
