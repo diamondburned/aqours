@@ -12,6 +12,8 @@ type Track struct {
 	Title  string
 	Artist string
 	Album  string
+	Genre  string
+	Date   string
 
 	Filepath string `json:",omitempty"`
 
@@ -59,6 +61,7 @@ func (t *Track) ForceProbe() error {
 	t.Number = p.TagValueInt("track", t.Number)
 	t.Bitrate = p.Format.BitRate
 	t.Length = time.Duration(p.Format.Duration * float64(time.Second))
+	t.Date = p.TagValue("date")
 
 	return nil
 }

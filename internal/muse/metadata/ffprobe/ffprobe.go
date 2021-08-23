@@ -72,7 +72,8 @@ func (res ProbeResult) TagValue(name string) string {
 
 func (res ProbeResult) TagValueInt(name string, orInt int) int {
 	v := res.TagValue(name)
-	i, err := strconv.Atoi(v)
+	// Split the slash for certain values like 0/3 (track number), etc.
+	i, err := strconv.Atoi(strings.SplitN(v, "/", 2)[0])
 	if err != nil {
 		return orInt
 	}
