@@ -117,6 +117,10 @@ func (w *MainWindow) useState(s *state.State) {
 	var selected *state.Playlist
 
 	playlistNames := w.state.PlaylistNames()
+	if len(playlistNames) == 0 {
+		// First run; can't restore state.
+		return
+	}
 
 	for _, name := range playlistNames {
 		playlist, _ := w.state.Playlist(name)
