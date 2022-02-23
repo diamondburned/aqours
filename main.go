@@ -4,53 +4,41 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sync"
 
 	"github.com/diamondburned/aqours/internal/mpris"
 	"github.com/diamondburned/aqours/internal/muse"
 	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui"
-	"github.com/diamondburned/handy"
-	"github.com/gotk3/gotk3/glib"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 const (
-	appFlags = glib.APPLICATION_FLAGS_NONE
+	appFlags = gio.ApplicationFlagsNone
 	appID    = "com.github.diamondburned.aqours"
 )
 
 func main() {
-	app, err := gtk.ApplicationNew(appID, appFlags)
-	if err != nil {
-		log.Fatalln("Failed to create a GtkApplication:", err)
-	}
-
 	log.SetFlags(log.Lmicroseconds | log.Ltime)
+	glib.LogUseDefaultLogger()
 
-	// GtkApplication's single instance API is weird: it uses some DBus IPC
-	// fuckery to trigger activate a second time. We could use Go's sync.Once to
-	// keep ensuring single-instance.
-	//
-	// Technically, the usage of sync.Once is overkill here, but who cares, it's
-	// cleaner.
-	var singleInstance sync.Once
-	var deconstructor func()
+	var w *ui.MainWindow
 
+	app := gtk.NewApplication(appID, appFlags)
 	app.Connect("activate", func() {
-		singleInstance.Do(func() { deconstructor = activate(app) })
+		if w == nil {
+			w = activate(app)
+		}
+		w.Window.Present()
 	})
-
-	defer func() { deconstructor() }()
 
 	if exitCode := app.Run(os.Args); exitCode > 0 {
 		panic(fmt.Sprintf("exit status %d", exitCode))
 	}
 }
 
-func activate(app *gtk.Application) (destroy func()) {
-	handy.Init()
-
+func activate(app *gtk.Application) *ui.MainWindow {
 	ses, err := muse.NewSession()
 	if err != nil {
 		log.Fatalln("Failed to create mpv session:", err)
@@ -81,19 +69,22 @@ func activate(app *gtk.Application) (destroy func()) {
 	// thread.
 	ses.Start()
 
-	w.Show()
-	app.AddWindow(w)
+	// TODO: add a saving spinner circle.
 
-	// Try to save the state and all playlists every 30 seconds.
-	glib.TimeoutAdd(30*1000, func() bool {
+	// Try to save the state and all playlists every 15 seconds.
+	glib.TimeoutSecondsAdd(15, func() bool {
 		st.SaveState()
 		w.SaveAllPlaylists()
 		return true
 	})
 
-	return func() {
+	app.ConnectShutdown(func() {
 		ses.Stop()
-		m.Close() // noop if m == nil
+		m.Close()
+
 		st.SaveAll()
-	}
+		st.WaitUntilSaved()
+	})
+
+	return w
 }

@@ -8,14 +8,11 @@ import (
 
 	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui/css"
-	"github.com/diamondburned/handy"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 type ParentController interface {
-	gtk.IWindow
 	AddPlaylist(path string)
-
 	// ParentPlaylistController methods.
 	GoBack()
 	HasPlaylist(name string) bool
@@ -24,7 +21,7 @@ type ParentController interface {
 }
 
 var bitrateCSS = css.PrepareClass("bitrate", `
-	label {
+	.bitrate {
 		margin: 0 6px;
 	}
 `)
@@ -36,7 +33,7 @@ type Container struct {
 	Left *AppControls
 	Info *PlaylistInfo
 
-	RightSide *handy.Leaflet
+	RightSide *gtk.Box
 	Bitrate   *gtk.Label
 	Right     *PlaylistControls
 
@@ -47,35 +44,28 @@ func NewContainer(parent ParentController) *Container {
 	c := &Container{ParentController: parent}
 
 	c.Left = NewAppControls(parent)
-	c.Left.Show()
 
 	c.Info = NewPlaylistInfo()
-	c.Info.Show()
 
-	c.Bitrate, _ = gtk.LabelNew("")
+	c.Bitrate = gtk.NewLabel("")
 	c.Bitrate.SetSingleLineMode(true)
-	c.Bitrate.Show()
+
 	bitrateCSS(c.Bitrate)
 
 	c.Right = NewPlaylistControls(c)
-	c.Right.Show()
 
-	c.RightSide = handy.LeafletNew()
-	c.RightSide.SetTransitionType(handy.LeafletTransitionTypeSlide)
-	c.RightSide.Add(c.Bitrate)
-	c.RightSide.Add(c.Right)
-	c.RightSide.SetVisibleChild(c.Right)
-	c.RightSide.Show()
+	c.RightSide = gtk.NewBox(gtk.OrientationHorizontal, 0)
+	c.RightSide.Append(c.Bitrate)
+	c.RightSide.Append(c.Right)
 
-	empty, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
+	empty := gtk.NewBox(gtk.OrientationHorizontal, 0)
 
-	h, _ := gtk.HeaderBarNew()
-	h.SetCustomTitle(empty)
+	h := gtk.NewHeaderBar()
+	h.SetTitleWidget(empty)
 	h.PackStart(c.Left)
 	h.PackStart(c.Info)
 	h.PackEnd(c.RightSide)
-	h.SetShowCloseButton(true)
-	h.Show()
+
 	c.HeaderBar = *h
 
 	c.Reset()

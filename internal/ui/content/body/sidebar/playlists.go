@@ -5,8 +5,8 @@ import (
 
 	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui/css"
-	"github.com/diamondburned/handy"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 )
 
 var playlistsCSS = css.PrepareClass("playlists", `
@@ -25,11 +25,11 @@ type PlaylistList struct {
 func NewPlaylistList(parent ParentController) *PlaylistList {
 	list := &PlaylistList{parent: parent}
 
-	lbox, _ := gtk.ListBoxNew()
-	lbox.SetSelectionMode(gtk.SELECTION_BROWSE)
+	lbox := gtk.NewListBox()
+	lbox.SetSelectionMode(gtk.SelectionBrowse)
 	lbox.SetActivateOnSingleClick(true)
 	lbox.Connect("row-activated", func(_ *gtk.ListBox, r *gtk.ListBoxRow) {
-		parent.SelectPlaylist(list.Playlists[r.GetIndex()].Name)
+		parent.SelectPlaylist(list.Playlists[r.Index()].Name)
 	})
 	playlistsCSS(lbox)
 
@@ -46,7 +46,8 @@ func (l *PlaylistList) AddPlaylist(pl *state.Playlist) *Playlist {
 	}
 
 	playlist := NewPlaylist(pl.Name, len(pl.Tracks))
-	l.ListBox.Add(playlist)
+
+	l.ListBox.Append(playlist)
 	l.Playlists = append(l.Playlists, playlist)
 
 	return playlist
@@ -64,7 +65,7 @@ func (l *PlaylistList) SelectFirstPlaylist() *Playlist {
 
 // SelectPlaylist selects the given playlist.
 func (l *PlaylistList) SelectPlaylist(pl *Playlist) {
-	l.SelectRow(&pl.ListBoxRow)
+	l.SelectRow(pl.ListBoxRow)
 	pl.Activate()
 	l.parent.SelectPlaylist(pl.Name)
 }
@@ -85,37 +86,64 @@ func (l *PlaylistList) Playlist(name string) *Playlist {
 }
 
 type Playlist struct {
-	handy.ActionRow
+	*gtk.ListBoxRow
+	name  *gtk.Label
+	total *gtk.Label
+
 	Name  string
 	Total int
 }
 
-func NewPlaylist(name string, total int) *Playlist {
-	arow := handy.ActionRowNew()
-	arow.SetActivatable(true)
-	arow.Show()
+var playlistEntryCSS = css.PrepareClass("playlist-entry", `
+	.playlist-entry > box {
+		margin: 6px 8px;
+	}
+	.playlist-entry > box > label:first-child {
+		font-size: 1.1em;
+	}
+	.playlist-entry > box > label:last-child {
+		font-size: 0.9em;
+		color: alpha(@theme_fg_color, 0.75);
+	}
+`)
 
-	pl := &Playlist{ActionRow: *arow}
+func NewPlaylist(name string, total int) *Playlist {
+	pl := Playlist{}
+	pl.name = gtk.NewLabel("")
+	pl.name.SetXAlign(0)
+	pl.name.SetEllipsize(pango.EllipsizeEnd)
+
+	pl.total = gtk.NewLabel("")
+	pl.total.SetXAlign(0)
+
+	box := gtk.NewBox(gtk.OrientationVertical, 0)
+	box.Append(pl.name)
+	box.Append(pl.total)
+
+	pl.ListBoxRow = gtk.NewListBoxRow()
+	pl.ListBoxRow.SetChild(box)
+	playlistEntryCSS(pl)
+
 	pl.SetName(name)
 	pl.SetTotal(total)
 
-	return pl
+	return &pl
 }
 
 func (pl *Playlist) SetUnsaved(unsaved bool) {
 	if !unsaved {
-		pl.SetTitle(pl.Name)
+		pl.name.SetLabel(pl.Name)
 	} else {
-		pl.SetTitle(pl.Name + " ●")
+		pl.name.SetLabel(pl.Name + " ●")
 	}
 }
 
 func (pl *Playlist) SetName(name string) {
-	pl.SetTitle(name)
+	pl.name.SetLabel(name)
 	pl.Name = name
 }
 
 func (pl *Playlist) SetTotal(total int) {
-	pl.SetSubtitle(fmt.Sprintf("%d songs", total))
+	pl.total.SetLabel(fmt.Sprintf("%d songs", total))
 	pl.Total = total
 }

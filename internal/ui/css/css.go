@@ -1,67 +1,48 @@
 package css
 
 import (
+	"bytes"
 	"log"
-	"runtime/debug"
+	"strings"
 
-	"github.com/gotk3/gotk3/gdk"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-type StyleContexter interface {
-	GetStyleContext() (*gtk.StyleContext, error)
-}
+var globalCSS bytes.Buffer
 
-func PrepareClass(class, css string) (attach func(StyleContexter)) {
-	prov := Prepare(css)
+// PrepareClass prepares the CSS and returns a function that applies the class
+// onto the given widget. The CSS should be for the class only, and the class
+// should reflect what's in the CSS block.
+func PrepareClass(class, css string) (attach func(gtk.Widgetter)) {
+	globalCSS.WriteString(css)
 
-	return func(ctx StyleContexter) {
-		s, _ := ctx.GetStyleContext()
-		s.AddProvider(prov, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-		s.AddClass(class)
+	return func(widget gtk.Widgetter) {
+		w := gtk.BaseWidget(widget)
+		w.AddCSSClass(class)
 	}
 }
 
-func Prepare(css string) *gtk.CssProvider {
-	p, _ := gtk.CssProviderNew()
-	if err := p.LoadFromData(css); err != nil {
-		log.Fatalf("CSS fail (%v) at %s\n", err, debug.Stack())
-	}
+// Prepare parses the given CSS and returns the CSSProvider.
+func Prepare(css string) *gtk.CSSProvider {
+	p := gtk.NewCSSProvider()
+	p.ConnectParsingError(func(sec *gtk.CSSSection, err error) {
+		// Optional line parsing routine.
+		loc := sec.StartLocation()
+		lines := strings.Split(css, "\n")
+		log.Printf("CSS error (%v) at line: %q", err, lines[loc.Lines()])
+	})
+	p.LoadFromData(css)
 	return p
 }
 
-// StyleContext gets the style context from the given contexter. Nil is
-// returned on any error.
-func StyleContext(ctx StyleContexter) *gtk.StyleContext {
-	v, _ := ctx.GetStyleContext()
-	return v
+// AddGlobal adds CSS to the global CSS buffer.
+func AddGlobal(css string) {
+	globalCSS.WriteString(css)
 }
 
-var cssRepos = map[string]*gtk.CssProvider{}
-
-func getDefaultScreen() *gdk.Screen {
-	d, _ := gdk.DisplayGetDefault()
-	s, _ := d.GetDefaultScreen()
-	return s
-}
-
-func loadProviders(screen *gdk.Screen) {
-	for file, repo := range cssRepos {
-		gtk.AddProviderForScreen(
-			screen, repo,
-			uint(gtk.STYLE_PROVIDER_PRIORITY_APPLICATION),
-		)
-		// mark as done
-		delete(cssRepos, file)
-	}
-}
-
-func LoadGlobal(name, css string) {
-	prov, _ := gtk.CssProviderNew()
-	if err := prov.LoadFromData(css); err != nil {
-		log.Fatalf("Failed to parse CSS in %s: %v\n", name, err)
-		return
-	}
-
-	cssRepos[name] = prov
+// LoadGlobal loads the global CSS buffer into the given display.
+func LoadGlobal(disp *gdk.Display) {
+	prov := Prepare(globalCSS.String())
+	gtk.StyleContextAddProviderForDisplay(disp, prov, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 }

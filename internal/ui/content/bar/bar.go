@@ -2,9 +2,10 @@
 package bar
 
 import (
+	"log"
+
 	"github.com/diamondburned/aqours/internal/ui/content/bar/controls"
-	"github.com/diamondburned/aqours/internal/ui/css"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 type ParentController interface {
@@ -14,43 +15,46 @@ type ParentController interface {
 	SetMute(muted bool)
 }
 
-var volumeCSS = css.PrepareClass("volume", "")
-
 type Container struct {
 	gtk.Grid
+	ParentController
+
 	NowPlaying *NowPlaying
 	Controls   *controls.Container
 	Volume     *Volume
 }
 
-func NewContainer(parent VisualizerController) *Container {
-	nowpl := NewNowPlaying(parent)
-	nowpl.Show()
+func NewContainer(parent ParentController) *Container {
+	c := Container{ParentController: parent}
+	c.NowPlaying = NewNowPlaying(parent)
 
-	controls := controls.NewContainer(parent)
-	controls.SetHExpand(true)
-	controls.SetHAlign(gtk.ALIGN_FILL)
-	controls.Show()
+	c.Controls = controls.NewContainer(parent)
+	c.Controls.SetHExpand(true)
+	c.Controls.SetHAlign(gtk.AlignFill)
 
-	vol := NewVolume(parent)
-	vol.Show()
-	volumeCSS(vol)
+	c.Volume = NewVolume(&c)
 
-	grid, _ := gtk.GridNew()
+	grid := gtk.NewGrid()
 	grid.SetRowHomogeneous(true)
 	grid.SetColumnHomogeneous(true)
 	grid.SetColumnSpacing(5)
 	grid.SetHExpand(true)
 
-	grid.Attach(nowpl, 0, 0, 2, 1)    // 1st column; 2 columns
-	grid.Attach(controls, 3, 0, 3, 1) // 2nd-3rd;    3 columns
-	grid.Attach(vol, 6, 0, 2, 1)      // 4th column; 2 columns
-	grid.Show()
+	grid.Attach(c.NowPlaying, 0, 0, 2, 1) // 1st column; 2 columns
+	grid.Attach(c.Controls, 3, 0, 3, 1)   // 2nd-3rd;    3 columns
+	grid.Attach(c.Volume, 6, 0, 2, 1)     // 4th column; 2 columns
 
-	return &Container{
-		Grid:       *grid,
-		NowPlaying: nowpl,
-		Controls:   controls,
-		Volume:     vol,
-	}
+	c.Grid = *grid
+	return &c
+}
+
+// SetPaused sets the paused state.
+func (c *Container) SetPaused(paused bool) {
+	// c.Vis.SetPaused(paused)
+	c.Controls.Buttons.Play.SetPlaying(!paused)
+}
+
+// SetVisualize sets the visualizer status.
+func (c *Container) SetVisualize(vis VisualizerStatus) {
+	log.Println("visualizer unimplemented")
 }

@@ -1,6 +1,6 @@
 package sidebar
 
-import "github.com/gotk3/gotk3/gtk"
+import "github.com/diamondburned/gotk4/pkg/gtk/v4"
 
 type ParentController interface {
 	SelectPlaylist(name string)
@@ -17,23 +17,20 @@ type Container struct {
 
 func NewContainer(parent ParentController) *Container {
 	list := NewPlaylistList(parent)
-	list.Show()
 
-	scroll, _ := gtk.ScrolledWindowNew(nil, nil)
-	scroll.SetPolicy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-	scroll.Add(list)
-	scroll.Show()
+	scroll := gtk.NewScrolledWindow()
+	scroll.SetVExpand(true)
+	scroll.SetPolicy(gtk.PolicyAutomatic, gtk.PolicyAutomatic)
+	scroll.SetChild(list)
 
-	separator, _ := gtk.SeparatorNew(gtk.ORIENTATION_VERTICAL)
-	separator.Show()
+	separator := gtk.NewSeparator(gtk.OrientationVertical)
 
 	aart := NewAlbumArt()
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	box.PackStart(scroll, true, true, 0)
-	box.PackStart(separator, false, false, 0)
-	box.PackStart(aart, false, false, 0)
-	box.Show()
+	box := gtk.NewBox(gtk.OrientationVertical, 0)
+	box.Append(scroll)
+	box.Append(separator)
+	box.Append(aart)
 
 	return &Container{
 		Box:          *box,

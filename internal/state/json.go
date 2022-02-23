@@ -24,6 +24,13 @@ type jsonState struct {
 
 	Shuffling bool       `json:"shuffling"`
 	Repeating RepeatMode `json:"repeating"`
+	Volume    float64    `json:"volume"`
+	Muted     bool       `json:"muted"`
+}
+
+// MarshalJSON marshals State to JSON.
+func (s *State) MarshalJSON() ([]byte, error) {
+	return json.Marshal(makeJSONState(s))
 }
 
 func fileJSONState(file string) (jsonState, error) {
@@ -66,21 +73,34 @@ func makeJSONState(s *State) jsonState {
 		Repeating:        s.repeating,
 		PlayingPlaylist:  playingPlaylist,
 		PlayingSongIndex: playingSongIndex,
+		Volume:           s.volume,
+		Muted:            s.muted,
 	}
 }
 
-func makeStateFromJSON(jsonState jsonState) *State {
+func (s *State) UnmarshalJSON(b []byte) error {
+	var state jsonState
+	if err := json.Unmarshal(b, &state); err != nil {
+		return err
+	}
+
+	*s = *makeStateFromJSON(state, s.intern)
+	return nil
+}
+
+func makeStateFromJSON(jsonState jsonState, intern *stateIntern) *State {
 	state := &State{
-		onUpdate:      func(s *State) { s.unsaved = true },
-		saving:        make(chan struct{}, 1),
+		intern:        intern,
 		metadata:      jsonState.Metadata,
 		playlists:     make(map[PlaylistName]*Playlist, len(jsonState.Playlists)),
 		playlistNames: make([]PlaylistName, 0, len(jsonState.Playlists)),
 		shuffling:     jsonState.Shuffling,
 		repeating:     jsonState.Repeating,
+		volume:        jsonState.Volume,
+		muted:         jsonState.Muted,
 	}
 
-	// Load playlists multithreaded.
+	// Load playlists concurrently.
 	playlists := make([]*playlist.Playlist, len(jsonState.Playlists))
 	waitGroup := sync.WaitGroup{}
 	waitGroup.Add(len(jsonState.Playlists))

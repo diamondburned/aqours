@@ -8,13 +8,16 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/diamondburned/aqours/internal/gtkutil"
 	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/state/prober"
-	"github.com/gotk3/gotk3/gdk"
-	"github.com/gotk3/gotk3/glib"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/lithammer/fuzzysearch/fuzzy"
 	"github.com/pkg/errors"
+	// coreglib "github.com/diamondburned/gotk4/pkg/glib/v2"
 )
 
 type TrackPath = string
@@ -32,21 +35,13 @@ type TrackList struct {
 
 	playing *state.Track
 
-	menu *gtk.Menu
-}
-
-var trackListDragTargets = []gtk.TargetEntry{
-	targetEntry("text/uri-list", gtk.TARGET_OTHER_APP, 1),
-}
-
-func targetEntry(target string, f gtk.TargetFlags, info uint) gtk.TargetEntry {
-	e, _ := gtk.TargetEntryNew(target, f, info)
-	return *e
+	menu *gtk.PopoverMenu
 }
 
 // searchFuzzy implements TreeViewSearchEqualFunc.
-func searchFuzzy(m *gtk.TreeModel, col int, k string, it *gtk.TreeIter) bool {
-	return !fuzzy.MatchNormalizedFold(k, m.GetStringFromIter(it))
+func searchFuzzy(m gtk.TreeModeller, col int, k string, it *gtk.TreeIter) bool {
+	data := m.Value(it, col)
+	return !fuzzy.MatchNormalizedFold(k, data.String())
 }
 
 type columnType = int
@@ -63,18 +58,18 @@ const (
 const maxDataSize = 10 * 1024 * 1024 // 10MB
 
 func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
-	store, _ := gtk.ListStoreNew(
-		glib.TYPE_STRING, // columnTitle
-		glib.TYPE_STRING, // columnArtist
-		glib.TYPE_STRING, // columnAlbum
-		glib.TYPE_STRING, // columnTime
-		glib.TYPE_INT,    // columnSelected - pango.Weight
-		glib.TYPE_STRING, // columnSearchData
-	)
+	store := gtk.NewListStore([]glib.Type{
+		glib.TypeString, // columnTitle
+		glib.TypeString, // columnArtist
+		glib.TypeString, // columnAlbum
+		glib.TypeString, // columnTime
+		glib.TypeInt,    // columnSelected - pango.Weight
+		glib.TypeString, // columnSearchData
+	})
 
-	tree, _ := gtk.TreeViewNewWithModel(store)
+	tree := gtk.NewTreeViewWithModel(store)
 	tree.SetActivateOnSingleClick(false)
-	tree.SetProperty("has-tooltip", true)
+	tree.SetHasTooltip(true)
 	tree.AppendColumn(newColumn("Title", columnTitle))
 	tree.AppendColumn(newColumn("Artist", columnArtist))
 	tree.AppendColumn(newColumn("Album", columnAlbum))
@@ -83,16 +78,14 @@ func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 	tree.AppendColumn(newColumn("", columnSearchData))
 	tree.SetSearchColumn(columnSearchData)
 	tree.SetSearchEqualFunc(searchFuzzy)
-	tree.Show()
 
-	s, _ := tree.GetSelection()
-	s.SetMode(gtk.SELECTION_MULTIPLE)
+	s := tree.Selection()
+	s.SetMode(gtk.SelectionMultiple)
 
-	scroll, _ := gtk.ScrolledWindowNew(nil, nil)
-	scroll.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
+	scroll := gtk.NewScrolledWindow()
+	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	scroll.SetVExpand(true)
-	scroll.Add(tree)
-	scroll.Show()
+	scroll.SetChild(tree)
 
 	list := TrackList{
 		ScrolledWindow: *scroll,
@@ -139,8 +132,8 @@ func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 	// cancel this.
 	prober.Queue(probeQueue...)
 
-	tree.Connect("row-activated", func(_ *gtk.TextView, path *gtk.TreePath) {
-		parent.PlayTrack(pl, path.GetIndices()[0])
+	tree.ConnectRowActivated(func(path *gtk.TreePath, _ *gtk.TreeViewColumn) {
+		parent.PlayTrack(pl, path.Indices()[0])
 	})
 
 	// TODO: Implement TreeView drag-and-drop for reordering. Effectively, the
@@ -151,93 +144,104 @@ func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 	// list, we could have a remove track and add path functions. The add
 	// function would simply treat the track as an unprocessed one.
 
-	tree.EnableModelDragDest(trackListDragTargets, gdk.ACTION_LINK)
-	tree.Connect("drag-data-received",
-		func(_ gtk.IWidget, ctx *gdk.DragContext, x, y int, data *gtk.SelectionData) {
-			if dataLen := data.GetLength(); dataLen < 1 || dataLen > maxDataSize {
-				return
-			}
-			// Get the files in form of line-delimited URIs
-			var uris = string(data.GetData())
+	// tree.EnableModelDragDest(trackListDragTargets, gdk.ActionLink)
 
-			path, pos, ok := tree.GetDestRowAtPos(x, y)
-			if !ok {
-				log.Println("No path found at dragged pos.")
-				return
-			}
-
-			before := false ||
-				pos == gtk.TREE_VIEW_DROP_BEFORE ||
-				pos == gtk.TREE_VIEW_DROP_INTO_OR_BEFORE
-
-			tree.SetSensitive(false)
-
-			go func() {
-				var paths = parseURIList(uris)
-
-				glib.IdleAdd(func() {
-					tree.SetSensitive(true)
-					if len(paths) > 0 {
-						list.addTracksAt(path, before, paths)
-					}
-				})
-			}()
-		},
-	)
-
-	tree.Connect("key-press-event", func(_ gtk.IWidget, ev *gdk.Event) bool {
-		return list.handleKeyEvent(gdk.EventKeyNewFromEvent(ev))
+	drop := gtk.NewDropTarget(glib.TypeInvalid, gdk.ActionLink)
+	drop.SetGTypes([]glib.Type{
+		gio.GTypeFile,
+		// gdk.GTypeF
+		// glib.TypeFromName("GFile"),
+		// glib.TypeFromName("Gdk.FileList"),
 	})
-
-	refresh, _ := gtk.MenuItemNewWithLabel("Refresh Metadata")
-	refresh.Show()
-	refresh.Connect("activate", list.refreshSelected)
-
-	sortTracks, _ := gtk.MenuItemNewWithLabel("Sort")
-	sortTracks.Show()
-	sortTracks.Connect("activate", list.sortSelectedTracks)
-
-	list.menu, _ = gtk.MenuNew()
-	list.menu.Add(refresh)
-	list.menu.Add(sortTracks)
-
-	tree.Connect("button-press-event", func(_ gtk.IWidget, ev *gdk.Event) bool {
-		bp := gdk.EventButtonNewFromEvent(ev)
-
-		switch bp.Button() {
-		case gdk.BUTTON_SECONDARY:
-			list.menu.PopupAtPointer(ev)
-			return true
-		default:
+	drop.ConnectDrop(func(value glib.Value, x, y float64) bool {
+		path, pos, ok := tree.DestRowAtPos(int(x), int(y))
+		if !ok {
+			log.Println("No path found at dragged pos.")
 			return false
 		}
+
+		before := false ||
+			pos == gtk.TreeViewDropBefore ||
+			pos == gtk.TreeViewDropIntoOrBefore
+
+		_ = before
+		_ = path
+
+		switch v := value.GoValue().(type) {
+		case gio.Filer:
+			log.Println("got path", v.Path())
+		default:
+			log.Printf("dropped unknown value of type %T", v)
+		}
+
+		return true
+	})
+	tree.AddController(drop)
+
+	/*
+		tree.Connect("drag-data-received",
+			func(_ gtk.Widgetter, ctx *gdk.DragContext, x, y int, data *gtk.SelectionData) {
+				if dataLen := data.GetLength(); dataLen < 1 || dataLen > maxDataSize {
+					return
+				}
+				// Get the files in form of line-delimited URIs
+				var uris = string(data.GetData())
+
+				path, pos, ok := tree.DestRowAtPos(x, y)
+				if !ok {
+				}
+
+				tree.SetSensitive(false)
+
+				go func() {
+					var paths = parseURIList(uris)
+
+					glib.IdleAdd(func() {
+						tree.SetSensitive(true)
+						if len(paths) > 0 {
+							list.addTracksAt(path, before, paths)
+						}
+					})
+				}()
+			},
+		)
+	*/
+
+	tree.AddController(list.keyEventController())
+
+	gtkutil.BindActionMap(tree, map[string]func(){
+		"tracklist.refresh": list.refreshSelected,
+		"tracklist.sort":    list.sortSelectedTracks,
 	})
 
-	// This leaks one Pixbuf but who cares.
+	menu := gtkutil.MenuPair([][2]string{
+		{"Refresh Metadata", "tracklist.refresh"},
+		{"Sort", "tracklist.sort"},
+	})
+	gtkutil.BindPopoverMenu(tree, gtk.PosBottom, menu)
+
 	trackTooltip := newTrackTooltipBox()
 
-	tree.Connect("query-tooltip",
-		func(_ gtk.IWidget, x, y int, kb bool, t *gtk.Tooltip) bool {
-			var path *gtk.TreePath
-			if !kb {
-				path, _, _ = tree.GetDestRowAtPos(x, y)
-			} else {
-				_, iter, _ := list.Select.GetSelected()
-				if iter != nil {
-					path, _ = list.Store.GetPath(iter)
-				}
+	tree.ConnectQueryTooltip(func(x, y int, kb bool, t *gtk.Tooltip) bool {
+		var path *gtk.TreePath
+		if !kb {
+			path, _, _ = tree.DestRowAtPos(x, y)
+		} else {
+			_, iter, _ := list.Select.Selected()
+			if iter != nil {
+				path = list.Store.Path(iter)
 			}
+		}
 
-			if path == nil {
-				return false
-			}
+		if path == nil {
+			return false
+		}
 
-			ix := path.GetIndices()[0]
-			trackTooltip.Attach(t, list.Playlist.Tracks[ix])
+		ix := path.Indices()[0]
+		trackTooltip.Attach(t, list.Playlist.Tracks[ix])
 
-			return true
-		},
-	)
+		return true
+	})
 
 	return &list
 }
@@ -298,25 +302,27 @@ func readDirOrFile(path string, dest *[]string) error {
 	return nil
 }
 
-func (list *TrackList) handleKeyEvent(evk *gdk.EventKey) bool {
-	keyVal := evk.KeyVal()
-	keyMod := gdk.ModifierType(evk.State())
-
-	switch keyVal {
-	case gdk.KEY_Delete:
-		list.removeSelected()
-		return true
-	}
-
-	if modIsPressed(keyMod, gdk.CONTROL_MASK) {
+func (list *TrackList) keyEventController() *gtk.EventControllerKey {
+	key := gtk.NewEventControllerKey()
+	key.ConnectKeyPressed(func(keyVal, _ uint, keyMod gdk.ModifierType) bool {
 		switch keyVal {
-		case gdk.KEY_S: // Ctrl+S
-			list.parent.SavePlaylist(list.Playlist)
+		case gdk.KEY_Delete:
+			list.removeSelected()
 			return true
 		}
-	}
 
-	return false
+		if modIsPressed(keyMod, gdk.ControlMask) {
+			switch keyVal {
+			case gdk.KEY_S: // Ctrl+S
+				list.parent.SavePlaylist(list.Playlist)
+				return true
+			}
+		}
+
+		return false
+	})
+
+	return key
 }
 
 func modIsPressed(mod, press gdk.ModifierType) bool {
@@ -324,7 +330,7 @@ func modIsPressed(mod, press gdk.ModifierType) bool {
 }
 
 func (list *TrackList) addTracksAt(path *gtk.TreePath, before bool, paths []string) {
-	ix := path.GetIndices()[0]
+	ix := path.Indices()[0]
 
 	start, end := list.Playlist.Add(ix, before, paths...)
 	probeQueue := make([]prober.Job, 0, end-start)
@@ -351,14 +357,7 @@ func (list *TrackList) addTracksAt(path *gtk.TreePath, before bool, paths []stri
 }
 
 func (list *TrackList) removeSelected() {
-	selected := list.Select.GetSelectedRows(list.Store)
-	selectIx := make([]int, 0, selected.Length())
-
-	selected.Foreach(func(v interface{}) {
-		path := v.(*gtk.TreePath)
-		selectIx = append(selectIx, path.GetIndices()[0])
-	})
-
+	selectIx := selectedIxs(list.Select)
 	if len(selectIx) == 0 {
 		return
 	}
@@ -376,13 +375,12 @@ func (list *TrackList) removeSelected() {
 }
 
 func (list *TrackList) sortSelectedTracks() {
-	selected := list.Select.GetSelectedRows(list.Store)
+	_, selectedRows := list.Select.SelectedRows()
 	selectMin := -1
 	selectMax := -1
 
-	selected.Foreach(func(v interface{}) {
-		path := v.(*gtk.TreePath)
-		ix := path.GetIndices()[0]
+	for _, selected := range selectedRows {
+		ix := selected.Indices()[0]
 
 		// Get max and min bounds without allocating a slice.
 		if selectMin == -1 || ix < selectMin {
@@ -391,7 +389,7 @@ func (list *TrackList) sortSelectedTracks() {
 		if selectMax == -1 || ix > selectMax {
 			selectMax = ix
 		}
-	})
+	}
 
 	list.sortTracksBounds(selectMin, selectMax)
 }
@@ -408,14 +406,7 @@ func (list *TrackList) sortTracksBounds(start, end int) {
 }
 
 func (list *TrackList) refreshSelected() {
-	selected := list.Select.GetSelectedRows(list.Store)
-	selectIx := make([]int, 0, selected.Length())
-
-	selected.Foreach(func(v interface{}) {
-		path := v.(*gtk.TreePath)
-		selectIx = append(selectIx, path.GetIndices()[0])
-	})
-
+	selectIx := selectedIxs(list.Select)
 	if len(selectIx) == 0 {
 		return
 	}
@@ -442,8 +433,8 @@ func (list *TrackList) SelectPlaying() {
 	list.Select.UnselectAll()
 	list.Select.SelectIter(rw.Iter)
 
-	path, _ := list.Store.GetPath(rw.Iter)
-	list.Tree.ScrollToCell(path, nil, false, 0, 0)
+	path := list.Store.Path(rw.Iter)
+	list.Tree.ScrollToCell(path, nil, true, 0.5, 0.0)
 }
 
 // SetPlaying unbolds the last track (if any) and bolds the given track. It does
@@ -475,10 +466,24 @@ func (list *TrackList) SetPlaying(playing *state.Track) {
 	if reselect {
 		list.Select.SelectIter(rw.Iter)
 
-		path, _ := list.Store.GetPath(rw.Iter)
+		path := list.Store.Path(rw.Iter)
 		list.Tree.ScrollToCell(path, nil, false, 0, 0)
 	}
 
 	list.playing = playing
 	rw.SetBold(list.Store, true)
+}
+
+func selectedIxs(sel *gtk.TreeSelection) []int {
+	_, selectedRows := sel.SelectedRows()
+	if len(selectedRows) == 0 {
+		return nil
+	}
+
+	selectIxs := make([]int, len(selectedRows))
+	for i, selected := range selectedRows {
+		selectIxs[i] = selected.Indices()[0]
+	}
+
+	return selectIxs
 }

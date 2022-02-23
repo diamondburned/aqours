@@ -6,7 +6,7 @@ import (
 
 	"github.com/diamondburned/aqours/internal/muse/playlist"
 	"github.com/diamondburned/aqours/internal/state"
-	"github.com/gotk3/gotk3/glib"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 )
 
 // Job is an internal type that allows a track to be copied in a thread-safe way

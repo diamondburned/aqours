@@ -9,9 +9,9 @@ import (
 	"github.com/diamondburned/aqours/internal/muse"
 	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/prop"
-	"github.com/gotk3/gotk3/glib"
 )
 
 type microsecond = int
@@ -162,12 +162,12 @@ func (p *player) sendPlaying(state *state.State) {
 // DBus methods.
 
 func (p *player) Next() *dbus.Error {
-	glib.IdleAdd(func() { p.Bar.Controls.Buttons.Next.Clicked() })
+	glib.IdleAdd(func() { p.Bar.Controls.Buttons.Next.Activate() })
 	return nil
 }
 
 func (p *player) Previous() *dbus.Error {
-	glib.IdleAdd(func() { p.Bar.Controls.Buttons.Prev.Clicked() })
+	glib.IdleAdd(func() { p.Bar.Controls.Buttons.Prev.Activate() })
 	return nil
 }
 
@@ -186,7 +186,7 @@ func (s *player) Stop() *dbus.Error {
 }
 
 func (p *player) PlayPause() *dbus.Error {
-	glib.IdleAdd(func() { p.Bar.Controls.Buttons.Play.Clicked() })
+	glib.IdleAdd(func() { p.Bar.Controls.Buttons.Play.Activate() })
 	return nil
 }
 

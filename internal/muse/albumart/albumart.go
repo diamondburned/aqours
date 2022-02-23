@@ -43,16 +43,12 @@ type File struct {
 	Extension string // jpeg, ...
 }
 
-func (f File) IsValid() bool {
-	return f.ReadCloser != nil
-}
-
 // AlbumArt queries for an album art. It returns an invalid File if there is no
 // album art. The function may read the album art into memory.
 //
 // The given context will directly control the returned file. If the context is
 // cancelled, then the file is also closed.
-func AlbumArt(ctx context.Context, path string) File {
+func AlbumArt(ctx context.Context, path string) *File {
 	// Prioritize searching for external album arts over reading the album art
 	// into memory.
 	dir := filepath.Dir(path)
@@ -99,14 +95,14 @@ func AlbumArt(ctx context.Context, path string) File {
 
 	select {
 	case file := <-results:
-		return file
+		return &file
 	case <-openCtx.Done():
 		// continue
 	}
 
 	f, err := os.Open(path)
 	if err != nil {
-		return File{}
+		return nil
 	}
 	defer f.Close()
 
@@ -115,14 +111,14 @@ func AlbumArt(ctx context.Context, path string) File {
 	m, err := tag.ReadFrom(f)
 	if err == nil {
 		if pic := m.Picture(); pic != nil {
-			return File{
+			return &File{
 				ReadCloser: ioutil.NopCloser(bytes.NewReader(pic.Data)),
 				Extension:  normalizeExt(pic.Ext),
 			}
 		}
 	}
 
-	return File{}
+	return nil
 }
 
 func closeWhenDone(ctx context.Context, f *os.File) {

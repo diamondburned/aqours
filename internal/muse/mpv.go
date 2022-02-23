@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/DexterLB/mpvipc"
-	"github.com/gotk3/gotk3/glib"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/pkg/errors"
 )
 
@@ -68,8 +68,9 @@ func newMpv() (*Session, error) {
 		"--no-input-terminal",
 		"--loop-playlist=no",
 		"--gapless-audio=weak",
-		"--replaygain=no",
-		// "--replaygain-clip=no",
+		"--audio-client-name=aqours + mpv",
+		"--replaygain=album",
+		"--replaygain-clip=yes",
 		"--ad=lavc:*",
 		"--input-ipc-server=" + sockPath,
 		"--volume=100",

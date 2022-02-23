@@ -11,21 +11,16 @@ import (
 	"github.com/diamondburned/aqours/internal/durafmt"
 	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui/css"
-	"github.com/gotk3/gotk3/gdk"
-	"github.com/gotk3/gotk3/gtk"
-	"github.com/gotk3/gotk3/pango"
+	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 )
 
 type ParentController interface {
-	gtk.IWindow
 	PlayTrack(p *state.Playlist, index int)
 	SavePlaylist(p *state.Playlist)
 	UpdateTracks(p *state.Playlist)
-}
-
-type ListStorer interface {
-	Set(iter *gtk.TreeIter, columns []int, values []interface{}) error
-	SetValue(iter *gtk.TreeIter, column int, value interface{}) error
 }
 
 type Container struct {
@@ -39,10 +34,9 @@ type Container struct {
 }
 
 func NewContainer(parent ParentController) *Container {
-	stack, _ := gtk.StackNew()
-	stack.SetTransitionType(gtk.STACK_TRANSITION_TYPE_CROSSFADE)
+	stack := gtk.NewStack()
+	stack.SetTransitionType(gtk.StackTransitionTypeCrossfade)
 	stack.SetTransitionDuration(25)
-	stack.Show()
 
 	return &Container{
 		parent: parent,
@@ -76,23 +70,24 @@ func (c *Container) DeletePlaylist(name string) {
 }
 
 func newColumn(text string, col columnType) *gtk.TreeViewColumn {
-	r, _ := gtk.CellRendererTextNew()
-	r.SetProperty("weight-set", true)
-	r.SetProperty("ellipsize", pango.ELLIPSIZE_END)
-	r.SetProperty("ellipsize-set", true)
+	r := gtk.NewCellRendererText()
+	r.SetObjectProperty("weight-set", true)
+	r.SetObjectProperty("ellipsize", pango.EllipsizeEnd)
+	r.SetObjectProperty("ellipsize-set", true)
 
-	c, _ := gtk.TreeViewColumnNewWithAttribute(text, r, "text", int(col))
+	c := gtk.NewTreeViewColumn()
+	c.SetTitle(text)
+	c.PackStart(r, false)
+	c.AddAttribute(r, "text", int(col))
 	c.AddAttribute(r, "weight", int(columnSelected))
-	c.SetSizing(gtk.TREE_VIEW_COLUMN_FIXED)
+	c.SetSizing(gtk.TreeViewColumnFixed)
 	c.SetResizable(true)
 
 	switch col {
 	case columnTime:
 		c.SetMinWidth(50)
-
 	case columnSelected, columnSearchData:
 		c.SetVisible(false)
-
 	default:
 		c.SetExpand(true)
 		c.SetMinWidth(150)
@@ -106,12 +101,12 @@ type TrackRow struct {
 	Iter *gtk.TreeIter
 }
 
-func (row *TrackRow) SetBold(store ListStorer, bold bool) {
+func (row *TrackRow) SetBold(store *gtk.ListStore, bold bool) {
 	row.Bold = bold
-	store.SetValue(row.Iter, columnSelected, weight(row.Bold))
+	store.SetValue(row.Iter, columnSelected, glib.NewValue(weight(row.Bold)))
 }
 
-func (row *TrackRow) setListStore(t *state.Track, store ListStorer) {
+func (row *TrackRow) setListStore(t *state.Track, store *gtk.ListStore) {
 	metadata := t.Metadata()
 
 	searchData := strings.Builder{}
@@ -133,39 +128,39 @@ func (row *TrackRow) setListStore(t *state.Track, store ListStorer) {
 			columnSelected,
 			columnSearchData,
 		},
-		[]interface{}{
-			metadata.Title,
-			metadata.Artist,
-			metadata.Album,
-			durafmt.Format(metadata.Length),
-			weight(row.Bold),
-			searchData.String(),
+		[]glib.Value{
+			*glib.NewValue(metadata.Title),
+			*glib.NewValue(metadata.Artist),
+			*glib.NewValue(metadata.Album),
+			*glib.NewValue(durafmt.Format(metadata.Length)),
+			*glib.NewValue(weight(row.Bold)),
+			*glib.NewValue(searchData.String()),
 		},
 	)
 }
 
 func weight(bold bool) pango.Weight {
 	if bold {
-		return pango.WEIGHT_BOLD
+		return pango.WeightBold
 	}
-	return pango.WEIGHT_BOOK
+	return pango.WeightBook
 }
 
 const (
-	AlbumIconSize = gtk.ICON_SIZE_DIALOG
+	AlbumIconSize = gtk.IconSizeLarge
 	PixelIconSize = 96
 )
 
 var trackTooltipCSS = css.PrepareClass("track-tooltip", "")
 
 var trackTooltipImageCSS = css.PrepareClass("track-tooltip-image", `
-	image {
+	.track-tooltip-image {
 		margin: 6px;
 	}
 `)
 
 type trackTooltipBox struct {
-	image     *gdk.Pixbuf
+	image     *gdkpixbuf.Pixbuf
 	trackPath string
 	stopFetch context.CancelFunc
 }

@@ -6,8 +6,8 @@ import (
 
 	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui/css"
-	"github.com/gotk3/gotk3/gtk"
-	"github.com/gotk3/gotk3/pango"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 )
 
 var titleCSS = css.PrepareClass("title", `
@@ -46,37 +46,31 @@ type NowPlaying struct {
 }
 
 func NewNowPlaying(parent ParentController) *NowPlaying {
-	title, _ := gtk.LabelNew("")
-	title.SetEllipsize(pango.ELLIPSIZE_END)
+	title := gtk.NewLabel("")
+	title.SetEllipsize(pango.EllipsizeEnd)
 	title.SetXAlign(0)
-	title.Show()
 	nowPlayingCSS(title)
 	titleCSS(title)
 
-	subtitle, _ := gtk.LabelNew("")
-	subtitle.SetEllipsize(pango.ELLIPSIZE_END)
+	subtitle := gtk.NewLabel("")
+	subtitle.SetEllipsize(pango.EllipsizeEnd)
 	subtitle.SetXAlign(0)
-	subtitle.Show()
 	nowPlayingCSS(subtitle)
 	subtitleCSS(subtitle)
 
-	subrev, _ := gtk.RevealerNew()
+	subrev := gtk.NewRevealer()
 	subrev.SetTransitionDuration(100)
-	subrev.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_SLIDE_DOWN)
-	subrev.Add(subtitle)
-	subrev.Show()
+	subrev.SetTransitionType(gtk.RevealerTransitionTypeSlideDown)
+	subrev.SetChild(subtitle)
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	box.PackStart(title, false, false, 0)
-	box.PackStart(subrev, false, false, 0)
-	box.SetVAlign(gtk.ALIGN_CENTER)
-	box.Show()
+	box := gtk.NewBox(gtk.OrientationVertical, 0)
+	box.Append(title)
+	box.Append(subrev)
+	box.SetVAlign(gtk.AlignCenter)
 
-	btn, _ := gtk.ButtonNew()
-	btn.SetRelief(gtk.RELIEF_NONE)
-	btn.Add(box)
-	btn.Show()
-	btn.Connect("clicked", parent.ScrollToPlaying)
+	btn := gtk.NewButton()
+	btn.SetChild(box)
+	btn.ConnectClicked(parent.ScrollToPlaying)
 	nowPlayingCSS(btn)
 
 	np := &NowPlaying{

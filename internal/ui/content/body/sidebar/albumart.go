@@ -9,16 +9,16 @@ import (
 	"github.com/diamondburned/aqours/internal/muse/albumart"
 	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui/css"
-	"github.com/gotk3/gotk3/cairo"
-	"github.com/gotk3/gotk3/gdk"
-	"github.com/gotk3/gotk3/glib"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/core/gioutil"
+	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 var albumArtCSS = css.PrepareClass("album-art", "")
 
 type AlbumArt struct {
-	gtk.Revealer
+	*gtk.Revealer
 	Path  string
 	Image *gtk.Image
 
@@ -28,21 +28,21 @@ type AlbumArt struct {
 const AlbumArtSize = 192
 
 func NewAlbumArt() *AlbumArt {
-	img, _ := gtk.ImageNew()
+	img := gtk.NewImage()
 	img.SetSizeRequest(AlbumArtSize, AlbumArtSize)
-	img.SetVAlign(gtk.ALIGN_CENTER)
-	img.SetHAlign(gtk.ALIGN_CENTER)
-	img.Show()
+	img.SetIconSize(gtk.IconSizeLarge)
+	img.SetVAlign(gtk.AlignCenter)
+	img.SetHAlign(gtk.AlignCenter)
+
 	albumArtCSS(img)
 
-	rev, _ := gtk.RevealerNew()
+	rev := gtk.NewRevealer()
 	rev.SetRevealChild(true)
-	rev.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_SLIDE_UP)
-	rev.Add(img)
-	rev.Show()
+	rev.SetTransitionType(gtk.RevealerTransitionTypeSlideUp)
+	rev.SetChild(img)
 
 	aa := &AlbumArt{
-		Revealer:    *rev,
+		Revealer:    rev,
 		Image:       img,
 		stopLoading: func() {}, // stub
 	}
@@ -53,7 +53,7 @@ func NewAlbumArt() *AlbumArt {
 }
 
 func (aa *AlbumArt) SetTrack(track *state.Track) {
-	aa.Image.SetFromIconName("media-optical-symbolic", gtk.ICON_SIZE_DIALOG)
+	aa.Image.SetFromIconName("media-optical-symbolic")
 
 	if track == nil {
 		return
@@ -64,20 +64,20 @@ func (aa *AlbumArt) SetTrack(track *state.Track) {
 	aa.stopLoading = cancel
 
 	aa.Path = track.Filepath
-	scale := aa.Image.GetScaleFactor()
+	scale := aa.Image.ScaleFactor()
 
 	go func() {
 		defer cancel()
 
-		surface := FetchAlbumArtScaled(ctx, track, AlbumArtSize, scale)
-		if surface == nil {
+		pixbuf := FetchAlbumArtScaled(ctx, track, AlbumArtSize, scale)
+		if pixbuf == nil {
 			return
 		}
 
 		glib.IdleAdd(func() {
 			// Make sure that the album art is still displaying the same file.
 			if aa.Path == track.Filepath {
-				aa.Image.SetFromSurface(surface)
+				aa.Image.SetFromPixbuf(pixbuf)
 			}
 		})
 	}()
@@ -85,54 +85,42 @@ func (aa *AlbumArt) SetTrack(track *state.Track) {
 
 // FetchAlbumArtScaled fetches the track's album art into a scaled Cairo Surface
 // for HiDPI.
-func FetchAlbumArtScaled(ctx context.Context, track *state.Track, size, scale int) *cairo.Surface {
-	p := FetchAlbumArt(ctx, track, size*scale)
-	if p == nil {
-		return nil
-	}
-
-	c, err := gdk.CairoSurfaceCreateFromPixbuf(p, scale, nil)
-	if err != nil {
-		log.Println("Failed to get Cairo Surface from Pixbuf:", err)
-		return nil
-	}
-
-	return c
+func FetchAlbumArtScaled(ctx context.Context, track *state.Track, size, scale int) *gdkpixbuf.Pixbuf {
+	return FetchAlbumArt(ctx, track, size*scale)
 }
 
 // FetchAlbumArt fetches the track's album art into a pixbuf with the given
 // size.
-func FetchAlbumArt(ctx context.Context, track *state.Track, size int) *gdk.Pixbuf {
-	var f = albumart.AlbumArt(ctx, track.Filepath)
-	if !f.IsValid() {
+func FetchAlbumArt(ctx context.Context, track *state.Track, size int) *gdkpixbuf.Pixbuf {
+	f := albumart.AlbumArt(ctx, track.Filepath)
+	if f == nil {
 		return nil
 	}
-
 	defer f.Close()
 
-	l, err := gdk.PixbufLoaderNewWithType(f.Extension)
+	l, err := gdkpixbuf.NewPixbufLoaderWithType(f.Extension)
 	if err != nil {
 		log.Printf("PixbufLoaderNewWithType failed with %q: %v\n", f.Extension, err)
 		return nil
 	}
 	defer l.Close()
 
-	l.Connect("size-prepared", func(l *gdk.PixbufLoader, w, h int) {
+	l.ConnectSizePrepared(func(w, h int) {
 		l.SetSize(MaxSize(w, h, size, size))
 	})
 
 	// Trivial error that we can't handle.
-	if _, err := io.Copy(l, f.ReadCloser); err != nil {
+	if _, err := io.Copy(gioutil.PixbufLoaderWriter(l), f.ReadCloser); err != nil {
+		log.Println("PixbufLoader.Write:", err)
 		return nil
 	}
 
-	p, err := l.GetPixbuf()
-	if err != nil {
-		log.Println("Failed to get pixbuf:", err)
+	if err := l.Close(); err != nil {
+		log.Println("PixbufLoader.Close:", err)
 		return nil
 	}
 
-	return p
+	return l.Pixbuf()
 }
 
 // MaxSize returns the maximum size that can fit within the given max width and

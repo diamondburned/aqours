@@ -2,7 +2,7 @@ package controls
 
 import (
 	"github.com/diamondburned/aqours/internal/state"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 type ParentController interface {
@@ -22,17 +22,14 @@ type Container struct {
 
 func NewContainer(parent ParentController) *Container {
 	buttons := NewButtons(parent)
-	buttons.SetHAlign(gtk.ALIGN_CENTER)
-	buttons.Show()
+	buttons.SetHAlign(gtk.AlignCenter)
 
 	seek := NewSeek(parent)
-	seek.SetHAlign(gtk.ALIGN_FILL)
-	seek.Show()
+	seek.SetHAlign(gtk.AlignFill)
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	box.PackStart(buttons, false, false, 0)
-	box.PackStart(seek, false, false, 0)
-	box.Show()
+	box := gtk.NewBox(gtk.OrientationVertical, 0)
+	box.Append(buttons)
+	box.Append(seek)
 
 	return &Container{
 		Box:     *box,

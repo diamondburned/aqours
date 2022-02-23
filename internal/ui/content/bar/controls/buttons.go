@@ -3,20 +3,15 @@ package controls
 import (
 	"github.com/diamondburned/aqours/internal/state"
 	"github.com/diamondburned/aqours/internal/ui/css"
-	"github.com/gotk3/gotk3/glib"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-func newIconImage(symbolicName string) *gtk.Image {
-	image, _ := gtk.ImageNewFromIconName(symbolicName, gtk.ICON_SIZE_BUTTON)
-	image.Show()
-	return image
-}
-
 var playbackButtonCSS = css.PrepareClass("playback-button", `
-	button {
+	.playback-button {
 		margin: 2px 8px;
 		margin-top: 12px;
+		border-radius: 9999px;
 
 		color:   @theme_fg_color;
 		opacity: 0.5;
@@ -24,8 +19,7 @@ var playbackButtonCSS = css.PrepareClass("playback-button", `
 		box-shadow: none;
 		background: none;
 	}
-
-	button:hover {
+	.playback-button:hover {
 		opacity: 1;
 	}
 `)
@@ -35,21 +29,21 @@ var prevCSS = css.PrepareClass("previous", ``)
 var nextCSS = css.PrepareClass("next", ``)
 
 var playPauseCSS = css.PrepareClass("playpause", `
-	button {
+	.playpause {
 		opacity: 0.75;
 		border: 1px solid alpha(@theme_fg_color, 0.45);
 	}
-	button:hover {
+	.playpause:hover {
 		border: 1px solid alpha(@theme_fg_color, 0.85);
 	}
 `)
 
 var repeatShuffleButtonCSS = css.PrepareClass("repeat-shuffle", `
-	button:checked {
+	.repeat-shuffle:checked {
 		color:   @theme_selected_bg_color;
 		opacity: 0.8;
 	}
-	button:checked:hover {
+	.repeat-shuffle:hover {
 		opacity: 1;
 	}
 `)
@@ -64,50 +58,41 @@ type Buttons struct {
 }
 
 func NewButtons(parent ParentController) *Buttons {
-	shuf, _ := gtk.ToggleButtonNew()
-	shuf.SetRelief(gtk.RELIEF_NONE)
-	shuf.SetImage(newIconImage("media-playlist-shuffle-symbolic"))
-	shuf.SetVAlign(gtk.ALIGN_CENTER)
-	shuf.Connect("toggled", func() { parent.SetShuffle(shuf.GetActive()) })
-	shuf.Show()
+	shuf := gtk.NewToggleButton()
+	shuf.SetChild(gtk.NewImageFromIconName("media-playlist-shuffle-symbolic"))
+	shuf.SetVAlign(gtk.AlignCenter)
+	shuf.ConnectToggled(func() { parent.SetShuffle(shuf.Active()) })
 	playbackButtonCSS(shuf)
 	repeatShuffleButtonCSS(shuf)
 
-	prev, _ := gtk.ButtonNew()
-	prev.SetRelief(gtk.RELIEF_NONE)
-	prev.SetImage(newIconImage("media-skip-backward"))
-	prev.SetVAlign(gtk.ALIGN_CENTER)
-	prev.Connect("clicked", parent.Previous)
-	prev.Show()
+	prev := gtk.NewButton()
+	prev.SetChild(gtk.NewImageFromIconName("media-skip-backward"))
+	prev.SetVAlign(gtk.AlignCenter)
+	prev.ConnectClicked(parent.Previous)
 	playbackButtonCSS(prev)
 	prevCSS(prev)
 
 	pp := NewPlayPause(parent)
-	pp.Show()
 	playbackButtonCSS(pp)
 	playPauseCSS(pp)
 
-	next, _ := gtk.ButtonNew()
-	next.SetRelief(gtk.RELIEF_NONE)
-	next.SetImage(newIconImage("media-skip-forward"))
-	next.SetVAlign(gtk.ALIGN_CENTER)
-	next.Connect("clicked", parent.Next)
-	next.Show()
+	next := gtk.NewButton()
+	next.SetChild(gtk.NewImageFromIconName("media-skip-forward"))
+	next.SetVAlign(gtk.AlignCenter)
+	next.ConnectClicked(parent.Next)
 	playbackButtonCSS(next)
 	nextCSS(next)
 
 	repeat := NewRepeat(parent)
-	repeat.Show()
 	playbackButtonCSS(repeat)
 	repeatShuffleButtonCSS(repeat)
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	box.PackStart(shuf, false, false, 0)
-	box.PackStart(prev, false, false, 0)
-	box.PackStart(pp, false, false, 0)
-	box.PackStart(next, false, false, 0)
-	box.PackStart(repeat, false, false, 0)
-	box.Show()
+	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	box.Append(shuf)
+	box.Append(prev)
+	box.Append(pp)
+	box.Append(next)
+	box.Append(repeat)
 
 	return &Buttons{
 		Box:     *box,
@@ -140,17 +125,13 @@ type Repeat struct {
 }
 
 func NewRepeat(parent ParentController) *Repeat {
-	icon := newIconImage("media-playlist-repeat-symbolic")
-	icon.Show()
-	singleIcon := newIconImage("media-playlist-repeat-song-symbolic")
-	singleIcon.Show()
+	icon := gtk.NewImageFromIconName("media-playlist-repeat-symbolic")
+	singleIcon := gtk.NewImageFromIconName("media-playlist-repeat-song-symbolic")
 
-	button, _ := gtk.ToggleButtonNew()
-	button.SetRelief(gtk.RELIEF_NONE)
-	button.SetVAlign(gtk.ALIGN_CENTER)
-	button.SetImage(icon)
+	button := gtk.NewToggleButton()
+	button.SetVAlign(gtk.AlignCenter)
+	button.SetChild(icon)
 	button.SetActive(false)
-	button.Show()
 
 	repeat := &Repeat{
 		ToggleButton: *button,
@@ -180,15 +161,15 @@ func (r *Repeat) SetRepeat(mode state.RepeatMode, callback bool) {
 	switch mode {
 	case state.RepeatNone:
 		r.SetActive(false)
-		r.SetImage(r.icon)
+		r.SetChild(r.icon)
 
 	case state.RepeatSingle:
 		r.SetActive(true)
-		r.SetImage(r.singleIcon)
+		r.SetChild(r.singleIcon)
 
 	case state.RepeatAll:
 		r.SetActive(true)
-		r.SetImage(r.icon)
+		r.SetChild(r.icon)
 	}
 }
 
@@ -201,21 +182,17 @@ type PlayPause struct {
 }
 
 func NewPlayPause(parent ParentController) *PlayPause {
-	play := newIconImage("media-playback-start-symbolic")
-	play.Show()
-	pause := newIconImage("media-playback-pause-symbolic")
-	pause.Show()
+	play := gtk.NewImageFromIconName("media-playback-start-symbolic")
+	pause := gtk.NewImageFromIconName("media-playback-pause-symbolic")
 
 	pp := &PlayPause{
 		playIcon:  play,
 		pauseIcon: pause,
 	}
 
-	btn, _ := gtk.ButtonNew()
-	btn.SetRelief(gtk.RELIEF_NONE)
-	btn.SetImage(pause)
-	btn.SetVAlign(gtk.ALIGN_CENTER)
-	btn.Show()
+	btn := gtk.NewButton()
+	btn.SetChild(pause)
+	btn.SetVAlign(gtk.AlignCenter)
 
 	pp.Button = *btn
 
@@ -232,10 +209,10 @@ func (pp *PlayPause) SetPlaying(playing bool) {
 	pp.playing = playing
 
 	if pp.playing {
-		pp.SetImage(pp.pauseIcon)
+		pp.SetChild(pp.pauseIcon)
 		pp.SetTooltipText("Pause")
 	} else {
-		pp.SetImage(pp.playIcon)
+		pp.SetChild(pp.playIcon)
 		pp.SetTooltipText("Play")
 	}
 }

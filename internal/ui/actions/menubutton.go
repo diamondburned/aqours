@@ -1,24 +1,25 @@
 package actions
 
 import (
-	"github.com/gotk3/gotk3/glib"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 type MenuButton struct {
-	gtk.MenuButton
+	*gtk.MenuButton
 
 	lastsig glib.SignalHandle
-	lastmod *glib.MenuModel
+	lastmod *gio.MenuModel
 }
 
 func NewMenuButton() *MenuButton {
-	b, _ := gtk.MenuButtonNew()
-	b.SetVAlign(gtk.ALIGN_CENTER)
+	b := gtk.NewMenuButton()
+	b.SetVAlign(gtk.AlignCenter)
 	b.SetSensitive(false)
 
 	return &MenuButton{
-		MenuButton: *b,
+		MenuButton: b,
 	}
 }
 
@@ -44,10 +45,10 @@ func (m *MenuButton) Bind(menu *Menu) {
 	if m.lastmod = model; m.lastmod != nil {
 		// If we have a model, then only activate the button when we have any
 		// menu items.
-		m.SetSensitive(model.GetNItems() > 0)
+		m.SetSensitive(model.NItems() > 0)
 		// Subscribe the button to menu update events.
-		m.lastsig = model.Connect("items-changed", func() {
-			m.SetSensitive(model.GetNItems() > 0)
+		m.lastsig = model.ConnectItemsChanged(func(_, _, _ int) {
+			m.SetSensitive(model.NItems() > 0)
 		})
 	} else {
 		// Else, don't allow the button to be clicked at all.

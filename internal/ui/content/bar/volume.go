@@ -2,26 +2,29 @@ package bar
 
 import (
 	"fmt"
-	"log"
-	"runtime/debug"
 
 	"github.com/diamondburned/aqours/internal/ui/content/bar/controls"
 	"github.com/diamondburned/aqours/internal/ui/css"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-type VisualizerStatus uint8
+type VisualizerStatus int8
 
 const (
-	VisualizerOnlyPlaying VisualizerStatus = iota // default
+	VisualizerDisabled VisualizerStatus = iota - 1
+	VisualizerOnlyPlaying
 	VisualizerAlwaysOn
 	VisualizerMuted
 	visualizerStatusLen
 )
 
+// Visualizer code is removed. Add it back once catnip is ported to GTK4 and
+// isn't garbage.
+const defaultVisStatus = VisualizerDisabled
+
 func (vs VisualizerStatus) IsPaused(paused bool) bool {
 	switch vs {
-	case VisualizerMuted:
+	case VisualizerMuted, VisualizerDisabled:
 		return true
 	case VisualizerAlwaysOn:
 		return false
@@ -34,6 +37,8 @@ func (vs VisualizerStatus) IsPaused(paused bool) bool {
 
 func (vs VisualizerStatus) String() string {
 	switch vs {
+	case VisualizerDisabled:
+		return "Disabled"
 	case VisualizerMuted:
 		return "Muted"
 	case VisualizerOnlyPlaying:
@@ -51,6 +56,8 @@ func (vs VisualizerStatus) cycle() VisualizerStatus {
 
 func (vs VisualizerStatus) icon() string {
 	switch vs {
+	case VisualizerDisabled:
+		return ""
 	case VisualizerMuted:
 		return "microphone-sensitivity-muted-symbolic"
 	case VisualizerAlwaysOn:
@@ -62,7 +69,7 @@ func (vs VisualizerStatus) icon() string {
 	}
 }
 
-type VisualizerController interface {
+type VolumeController interface {
 	ParentController
 	SetVisualize(visualize VisualizerStatus)
 }
@@ -83,7 +90,7 @@ type Volume struct {
 }
 
 var volumeSliderCSS = css.PrepareClass("volume-slider", `
-	scale {
+	.volume-slider {
 		margin: 0;
 		padding-left: 2px;
 	}
@@ -92,56 +99,52 @@ var volumeSliderCSS = css.PrepareClass("volume-slider", `
 var muteButtonCSS = css.PrepareClass("mute-button", ``)
 
 var rightButtonCSS = css.PrepareClass("right-button", `
-	button {
+	.right-button {
 		margin:  0;
 		color:   @theme_fg_color;
 		opacity: 0.5;
 		box-shadow: none;
 		background: none;
 	}
-
-	button:hover {
+	.right-button:hover {
 		opacity: 1;
 	}
 `)
 
-func NewVolume(parent VisualizerController) *Volume {
-	visIcon, _ := gtk.ImageNew()
-	visIcon.Show()
+var volumeCSS = css.PrepareClass("volume", "")
 
-	visualize, _ := gtk.ButtonNew()
-	visualize.SetRelief(gtk.RELIEF_NONE)
-	visualize.SetImage(visIcon)
+func NewVolume(parent VolumeController) *Volume {
+	visIcon := gtk.NewImage()
+
+	visualize := gtk.NewButton()
+	visualize.SetChild(visIcon)
 	rightButtonCSS(visualize)
 
-	icon, _ := gtk.ImageNew()
-	icon.Show()
+	icon := gtk.NewImage()
 
-	mute, _ := gtk.ToggleButtonNew()
-	mute.SetRelief(gtk.RELIEF_NONE)
-	mute.SetImage(icon)
-	mute.Show()
+	mute := gtk.NewToggleButton()
+	mute.SetChild(icon)
+
 	muteButtonCSS(mute)
 	rightButtonCSS(mute)
 
-	slider, _ := gtk.ScaleNewWithRange(gtk.ORIENTATION_HORIZONTAL, 0, 100, 1)
+	slider := gtk.NewScaleWithRange(gtk.OrientationHorizontal, 0, 100, 1)
 	slider.SetSizeRequest(100, -1)
 	slider.SetDrawValue(false)
-	slider.Show()
+	slider.SetHExpand(true)
+
 	controls.CleanScaleCSS(slider)
 	volumeSliderCSS(slider)
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-
-	if HasVisualizer {
-		visualize.Show()
-		box.PackStart(visualize, false, false, 0)
+	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	if defaultVisStatus != VisualizerDisabled {
+		box.Append(visualize)
 	}
 
-	box.PackStart(mute, false, false, 0)
-	box.PackStart(slider, true, true, 0)
-	box.SetVAlign(gtk.ALIGN_CENTER)
-	box.SetHAlign(gtk.ALIGN_END)
+	box.Append(mute)
+	box.Append(slider)
+	box.SetVAlign(gtk.AlignCenter)
+	box.SetHAlign(gtk.AlignEnd)
 	box.SetHExpand(true)
 
 	volume := &Volume{
@@ -153,8 +156,9 @@ func NewVolume(parent VisualizerController) *Volume {
 		Slider:    slider,
 		volume:    100,
 		muted:     false,
-		visualize: VisualizerOnlyPlaying,
+		visualize: defaultVisStatus,
 	}
+	volumeCSS(volume)
 
 	mute.SetActive(volume.muted)
 	slider.SetValue(volume.volume)
@@ -167,14 +171,14 @@ func NewVolume(parent VisualizerController) *Volume {
 	})
 
 	mute.Connect("toggled", func() {
-		volume.muted = mute.GetActive()
+		volume.muted = mute.Active()
 		volume.updateIcon()
 		slider.SetSensitive(!volume.muted) // no sense to change volume while muted
 		parent.SetMute(volume.muted)
 	})
 
 	slider.Connect("value-changed", func() {
-		volume.volume = clampVolume(slider.GetValue())
+		volume.volume = clampVolume(slider.Value())
 		volume.updateIcon()
 		parent.SetVolume(volume.volume)
 	})
@@ -184,7 +188,6 @@ func NewVolume(parent VisualizerController) *Volume {
 
 // SetVolume sets the volume and triggers the callback to parent.
 func (v *Volume) SetVolume(perc float64) {
-	log.Println("(*Volume).SetVolume called:", string(debug.Stack()))
 	v.Slider.SetValue(perc)
 }
 
@@ -209,7 +212,7 @@ func (v *Volume) updateIcon() {
 }
 
 func (v *Volume) updateVisualizeIcon() {
-	v.VisIcon.SetFromIconName(v.visualize.icon(), gtk.ICON_SIZE_BUTTON)
+	v.VisIcon.SetFromIconName(v.visualize.icon())
 	v.Visualize.SetTooltipText(v.visualize.String())
 }
 
@@ -227,7 +230,7 @@ func (v *Volume) updateVolumeIcon() {
 		icon = "audio-volume-high-symbolic"
 	}
 
-	v.Icon.SetFromIconName(icon, gtk.ICON_SIZE_BUTTON)
+	v.Icon.SetFromIconName(icon)
 }
 
 func clampVolume(perc float64) float64 {

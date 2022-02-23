@@ -8,7 +8,7 @@ import (
 
 	"github.com/diamondburned/aqours/internal/durafmt"
 	"github.com/diamondburned/aqours/internal/ui/css"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 var timePositionCSS = css.PrepareClass("time-position", "")
@@ -18,28 +18,25 @@ var timeTotalCSS = css.PrepareClass("time-total", "")
 var seekBarCSS = css.PrepareClass("seek-bar", ``)
 
 var CleanScaleCSS = css.PrepareClass("clean-scale", `
-	scale {
+	.clean-scale {
 		margin: -2px 0px;
 	}
-
-	scale trough,
-	scale highlight {
+	.clean-scale trough,
+	.clean-scale highlight {
 		border-radius: 9999px;
 	}
-
-	scale slider {
+	.clean-scale slider {
 		padding:    1px;
 		background: none;
 		transition: linear 75ms background;
 	}
-
-	scale:hover slider {
-		/* Shitty hack to limit background size. Thanks, Gtk. */
+	.clean-scale:hover slider {
+		/* Shitty hack to limit background size. Thanks, GTK. */
 		background: radial-gradient(
 			circle,
 			@theme_selected_bg_color 0%,
 			@theme_selected_bg_color 25%,
-			transparent 10%,
+			transparent 30%,
 			transparent
 		);
 	}
@@ -60,24 +57,24 @@ type Seek struct {
 }
 
 func NewSeek(parent ParentController) *Seek {
-	pos, _ := gtk.LabelNew("")
+	pos := gtk.NewLabel("")
 	pos.SetSingleLineMode(true)
 	pos.SetWidthChars(5)
-	pos.Show()
+
 	timePositionCSS(pos)
 
-	time, _ := gtk.LabelNew("")
+	time := gtk.NewLabel("")
 	time.SetSingleLineMode(true)
 	time.SetWidthChars(5)
-	time.Show()
+
 	timeTotalCSS(time)
 
-	adj, _ := gtk.AdjustmentNew(0, 0, 1, 1, 1, 0)
+	adj := gtk.NewAdjustment(0, 0, 1, 1, 1, 0)
 
-	bar, _ := gtk.ScaleNew(gtk.ORIENTATION_HORIZONTAL, adj)
+	bar := gtk.NewScale(gtk.OrientationHorizontal, adj)
 	bar.SetDrawValue(false)
-	bar.SetVAlign(gtk.ALIGN_CENTER)
-	bar.Show()
+	bar.SetVAlign(gtk.AlignCenter)
+	bar.SetHExpand(true)
 	CleanScaleCSS(bar)
 	seekBarCSS(bar)
 
@@ -85,11 +82,11 @@ func NewSeek(parent ParentController) *Seek {
 		parent.Seek(v)
 	})
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	box.PackStart(pos, false, false, 0)
-	box.PackStart(bar, true, true, 0)
-	box.PackStart(time, false, false, 0)
-	box.Show()
+	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	box.Append(pos)
+	box.Append(bar)
+	box.Append(time)
+
 	seekCSS(box)
 
 	return &Seek{

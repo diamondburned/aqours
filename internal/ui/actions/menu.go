@@ -3,32 +3,21 @@ package actions
 import (
 	"fmt"
 
-	"github.com/gotk3/gotk3/gdk"
-	"github.com/gotk3/gotk3/glib"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
-
-type Connector interface {
-	gtk.IWidget
-	Connect(string, interface{}, ...interface{}) (glib.SignalHandle, error)
-}
-
-type ActionGroupInserter interface {
-	InsertActionGroup(prefix string, action glib.IActionGroup)
-}
-
-var _ ActionGroupInserter = (*gtk.Widget)(nil)
 
 type Menu struct {
 	*Stateful
-	menu   *glib.Menu
+	menu   *gio.Menu
 	prefix string
 }
 
 func NewMenu(prefix string) *Menu {
 	return &Menu{
 		Stateful: NewStateful(), // actiongroup and menu not linked
-		menu:     glib.MenuNew(),
+		menu:     gio.NewMenu(),
 		prefix:   prefix,
 	}
 }
@@ -37,30 +26,26 @@ func (m *Menu) Prefix() string {
 	return m.prefix
 }
 
-func (m *Menu) MenuModel() (string, *glib.MenuModel) {
+func (m *Menu) MenuModel() (string, *gio.MenuModel) {
 	return m.prefix, &m.menu.MenuModel
 }
 
-func (m *Menu) InsertActionGroup(w ActionGroupInserter) {
+func (m *Menu) InsertActionGroup(widget gtk.Widgetter) {
+	w := gtk.BaseWidget(widget)
 	w.InsertActionGroup(m.prefix, m)
 }
 
-func (m *Menu) ButtonRightClick(connector Connector) {
-	connector.Connect("button-press-event", func(_ interface{}, ev *gdk.Event) {
-		if eventIsRightClick(ev) {
-			m.Popup(connector)
-		}
+func (m *Menu) ButtonRightClick(w gtk.Widgetter) {
+	click := gtk.NewGestureClick()
+	click.SetButton(gdk.BUTTON_SECONDARY)
+	click.ConnectPressed(func(n int, x, y float64) {
+		m.Popup(w)
 	})
-}
-
-func eventIsRightClick(ev *gdk.Event) bool {
-	btn := gdk.EventButtonNewFromEvent(ev)
-	return btn.Type() == gdk.EVENT_BUTTON_PRESS && btn.Button() == gdk.BUTTON_SECONDARY
 }
 
 // Popup pops up the menu popover. It does not pop up anything if there are no
 // menu items.
-func (m *Menu) Popup(relative gtk.IWidget) {
+func (m *Menu) Popup(relative gtk.Widgetter) {
 	p := m.popover(relative)
 	if p == nil || m.Len() == 0 {
 		return
@@ -69,11 +54,12 @@ func (m *Menu) Popup(relative gtk.IWidget) {
 	p.Popup()
 }
 
-func (m *Menu) popover(relative gtk.IWidget) *gtk.Popover {
+func (m *Menu) popover(relative gtk.Widgetter) *gtk.PopoverMenu {
 	_, model := m.MenuModel()
 
-	p, _ := gtk.PopoverNewFromModel(relative, model)
-	p.SetPosition(gtk.POS_RIGHT)
+	p := gtk.NewPopoverMenuFromModel(model)
+	p.SetParent(relative)
+	p.SetPosition(gtk.PosRight)
 
 	return p
 }
@@ -97,7 +83,7 @@ func (m *Menu) RemoveAction(label string) {
 			m.menu.Remove(i)
 
 			m.Stateful.labels = labels
-			m.Stateful.group.RemoveAction(ActionName(label))
+			m.Stateful.SimpleActionGroup.RemoveAction(ActionName(label))
 
 			return
 		}

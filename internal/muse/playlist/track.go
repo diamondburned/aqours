@@ -20,11 +20,17 @@ type Track struct {
 	Number  int
 	Length  time.Duration
 	Bitrate int
+
+	// Unprobeable is true if the Track cannot be probed.
+	Unprobeable bool `json:"unprobeable,omitempty"`
 }
 
 // IsProbed returns true if the track is probed.
 func (t Track) IsProbed() bool {
-	// We'd maybe want to try and probe all the time.
+	// Consider probed if we can't probe before.
+	if t.Unprobeable {
+		return true
+	}
 	return true &&
 		(t.Bitrate > 0 && t.Length > 0) &&
 		(t.Title != "" && t.Artist != "" && t.Album != "")
@@ -44,6 +50,7 @@ func (t *Track) ForceProbe() error {
 		// We can still reset the title and try to guess it. We might want to do
 		// this if the playlist file has invalid titles.
 		t.Title = TitleFromPath(t.Filepath)
+		t.Unprobeable = true
 		return err
 	}
 

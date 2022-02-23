@@ -11,15 +11,13 @@ import (
 	"github.com/diamondburned/aqours/internal/ui/content"
 	"github.com/diamondburned/aqours/internal/ui/css"
 	"github.com/diamondburned/aqours/internal/ui/header"
-	"github.com/gotk3/gotk3/glib"
-	"github.com/gotk3/gotk3/gtk"
-	"github.com/pkg/errors"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 func init() {
-	css.LoadGlobal("main", `
-
-	`)
+	css.AddGlobal(``)
 }
 
 func assert(b bool, e string) {
@@ -47,9 +45,9 @@ const maxErrorThreshold = 3
 const minPlayLength = 250 * time.Millisecond
 
 type MainWindow struct {
-	gtk.ApplicationWindow
 	content.Container
 
+	Window *gtk.ApplicationWindow
 	Header *header.Container
 
 	muse  *muse.Session
@@ -62,29 +60,30 @@ type MainWindow struct {
 func NewMainWindow(
 	a *gtk.Application, session *muse.Session, s *state.State) (*MainWindow, error) {
 
-	window, err := gtk.ApplicationWindowNew(a)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create window")
-	}
+	window := gtk.NewApplicationWindow(a)
 	window.SetTitle("Aqours")
 	window.SetDefaultSize(800, 500)
+	window.ConnectMap(func() {
+		surface := window.Surface()
+		display := gdk.BaseSurface(surface).Display()
+		css.LoadGlobal(display)
+	})
 
 	w := &MainWindow{
-		ApplicationWindow: *window,
-		muse:              session,
+		Window: window,
+		muse:   session,
 	}
 
 	w.Header = header.NewContainer(w)
-	w.Header.Show()
-	w.SetTitlebar(w.Header)
+	window.SetTitlebar(w.Header)
 
 	w.Container = content.NewContainer(w)
-	w.Add(w.ContentBox)
+	window.SetChild(w.ContentBox)
 
 	w.useState(s)
 
 	// Use a low-priority 250ms poller instead of updating live.
-	glib.TimeoutAddPriority(250, glib.PRIORITY_DEFAULT_IDLE, func() bool {
+	glib.TimeoutAddPriority(250, glib.PriorityDefaultIdle, func() bool {
 		pos, rem := session.PlayState.PlayTime()
 		w.Bar.Controls.Seek.UpdatePosition(pos, pos+rem)
 
@@ -94,6 +93,11 @@ func NewMainWindow(
 	})
 
 	return w, nil
+}
+
+// Present shows and focuses the window.
+func (w *MainWindow) Present() {
+	w.Window.Present()
 }
 
 // PlaySession returns the internal playback session.
@@ -113,6 +117,9 @@ func (w *MainWindow) useState(s *state.State) {
 	// Restore the state. These calls will update the observer.
 	w.SetRepeat(w.state.RepeatMode())
 	w.SetShuffle(w.state.IsShuffling())
+	// These calls will update MainWindow through signals.
+	w.Bar.SetMute(w.state.IsMuted())
+	w.Bar.Volume.SetVolume(w.state.Volume())
 
 	var selected *state.Playlist
 
@@ -188,16 +195,14 @@ func (w *MainWindow) OnSongFinish() {
 }
 
 func (w *MainWindow) OnPauseUpdate(pause bool) {
-	w.Vis.SetPaused(pause)
-	w.Bar.Controls.Buttons.Play.SetPlaying(!pause)
-
+	w.Bar.SetPaused(pause)
 	if pause {
 		w.Header.SetBitrate(-1)
 	}
 }
 
 func (w *MainWindow) AddPlaylist(path string) {
-	w.SetSensitive(false)
+	w.Window.SetSensitive(false)
 
 	go func() {
 		p, err := playlist.ParseFile(path)
@@ -206,7 +211,7 @@ func (w *MainWindow) AddPlaylist(path string) {
 		}
 
 		glib.IdleAdd(func() {
-			w.SetSensitive(true)
+			w.Window.SetSensitive(true)
 
 			if err != nil {
 				return
@@ -354,6 +359,9 @@ func (w *MainWindow) playTrack(track *state.Track) {
 	trackList.SetPlaying(track)
 	w.Bar.NowPlaying.SetTrack(track)
 	w.Body.Sidebar.AlbumArt.SetTrack(track)
+
+	// Save the state asynchronously.
+	w.state.SaveState()
 }
 
 func (w *MainWindow) SelectPlaylist(name string) {
@@ -373,7 +381,7 @@ func (w *MainWindow) selectPlaylist(pl *state.Playlist) {
 	trackList.SelectPlaying()
 
 	w.Header.SetPlaylist(pl)
-	w.SetTitle(fmt.Sprintf("%s - Aqours", pl.Name))
+	w.Window.SetTitle(fmt.Sprintf("%s - Aqours", pl.Name))
 }
 
 func (w *MainWindow) ScrollToPlaying() {
@@ -385,6 +393,8 @@ func (w *MainWindow) SetVolume(perc float64) {
 		log.Println("SetVolume failed:", err)
 		return
 	}
+
+	w.state.SetVolume(perc)
 }
 
 func (w *MainWindow) SetMute(mute bool) {
@@ -392,4 +402,6 @@ func (w *MainWindow) SetMute(mute bool) {
 		log.Println("SetMute failed:", mute)
 		return
 	}
+
+	w.state.SetMute(mute)
 }

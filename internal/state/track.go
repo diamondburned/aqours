@@ -24,7 +24,7 @@ func (mm metadataMap) unref(s *State, path string) {
 	md.reference--
 	if md.reference == 0 {
 		delete(mm, path)
-		s.unsaved = true
+		s.intern.unsaved = true
 	}
 }
 
@@ -69,7 +69,7 @@ func (t *Track) UpdateMetadata(i playlist.Track) {
 	md.Track = i
 
 	// Mark as unsaved.
-	t.playlist.state.unsaved = true
+	t.playlist.state.intern.unsaved = true
 }
 
 // Metadata returns a copy of the current track's metadata with the filepath

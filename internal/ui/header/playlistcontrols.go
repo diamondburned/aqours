@@ -1,11 +1,10 @@
 package header
 
 import (
-	"log"
-
+	"github.com/diamondburned/aqours/internal/gtkutil"
 	"github.com/diamondburned/aqours/internal/ui/actions"
 	"github.com/diamondburned/aqours/internal/ui/css"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 var renameEntryCSS = css.PrepareClass("rename-entry", `
@@ -15,7 +14,6 @@ var renameEntryCSS = css.PrepareClass("rename-entry", `
 `)
 
 type ParentPlaylistController interface {
-	gtk.IWindow
 	// RenamePlaylist renames the current playlist.
 	RenamePlaylist(newName string)
 	// HasPlaylist returns true if the playlist already exists with the given
@@ -39,20 +37,15 @@ type PlaylistControls struct {
 func NewPlaylistControls(parent ParentPlaylistController) *PlaylistControls {
 	hamMenu := actions.NewMenu("playlist-ctrl")
 
-	icon, _ := gtk.ImageNewFromIconName("open-menu-symbolic", gtk.ICON_SIZE_BUTTON)
-	icon.Show()
-
 	hamburger := actions.NewMenuButton()
-	hamburger.SetImage(icon)
+	hamburger.SetIconName("open-menu-symbolic")
 	hamburger.Bind(hamMenu)
-	hamburger.Show()
 
-	rev, _ := gtk.RevealerNew()
+	rev := gtk.NewRevealer()
 	rev.SetRevealChild(false)
 	rev.SetTransitionDuration(50)
-	rev.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_CROSSFADE)
-	rev.Add(hamburger)
-	rev.Show()
+	rev.SetTransitionType(gtk.RevealerTransitionTypeCrossfade)
+	rev.SetChild(hamburger)
 
 	hamMenu.AddAction("Rename Playlist", func() { spawnRenameDialog(parent) })
 	hamMenu.AddAction("Save Playlist", parent.SaveCurrentPlaylist)
@@ -67,48 +60,45 @@ func NewPlaylistControls(parent ParentPlaylistController) *PlaylistControls {
 const nameCollideMsg = "Playlist already exists with the same name."
 
 func spawnRenameDialog(parent ParentPlaylistController) {
-	dialog, _ := gtk.DialogNewWithButtons(
-		"Rename Playlist", parent, gtk.DIALOG_MODAL|gtk.DIALOG_USE_HEADER_BAR,
-		[]interface{}{"Rename", gtk.RESPONSE_APPLY},
-	)
+	window := gtkutil.ActiveWindow()
+	dialog := gtk.NewDialogWithFlags(
+		"Rename Playlist", window, gtk.DialogModal|gtk.DialogUseHeaderBar)
 
+	dialog.AddButton("Rename", int(gtk.ResponseApply))
 	// We're starting w/ the same name, so we shouldn't let it apply.
-	dialog.SetResponseSensitive(gtk.RESPONSE_APPLY, false)
+	dialog.SetResponseSensitive(int(gtk.ResponseApply), false)
 
 	var newName string
 
-	entry, _ := gtk.EntryNew()
+	entry := gtk.NewEntry()
 	entry.SetText(parent.PlaylistName())
 	entry.SetPlaceholderText("New Playlist")
 	entry.Connect("changed", func() {
-		t, err := entry.GetText()
-		if err != nil {
-			log.Println("Failed to get entry text:", err)
-			return
-		}
-
+		t := entry.Text()
 		if t == "" || parent.HasPlaylist(t) {
-			dialog.SetResponseSensitive(gtk.RESPONSE_APPLY, false)
-			entry.SetIconFromIconName(gtk.ENTRY_ICON_SECONDARY, "dialog-error-symbolic")
-			entry.SetIconTooltipText(gtk.ENTRY_ICON_SECONDARY, nameCollideMsg)
+			dialog.SetResponseSensitive(int(gtk.ResponseApply), false)
+			entry.SetIconFromIconName(gtk.EntryIconSecondary, "dialog-error-symbolic")
+			entry.SetIconTooltipText(gtk.EntryIconSecondary, nameCollideMsg)
+			newName = ""
 		} else {
-			dialog.SetResponseSensitive(gtk.RESPONSE_APPLY, true)
-			entry.RemoveIcon(gtk.ENTRY_ICON_SECONDARY)
+			dialog.SetResponseSensitive(int(gtk.ResponseApply), true)
+			entry.SetIconFromIconName(gtk.EntryIconSecondary, "")
 			newName = t
 		}
 	})
-	entry.Show()
+
 	renameEntryCSS(entry)
 
-	c, _ := dialog.GetContentArea()
-	c.Add(entry)
-	c.Show()
+	c := dialog.ContentArea()
+	c.Append(entry)
 
-	defer dialog.Close()
+	dialog.ConnectResponse(func(res int) {
+		defer dialog.Destroy()
 
-	if res := dialog.Run(); res != gtk.RESPONSE_APPLY || newName == "" {
-		return
-	}
+		if res != int(gtk.ResponseApply) || newName == "" {
+			return
+		}
 
-	parent.RenamePlaylist(newName)
+		parent.RenamePlaylist(newName)
+	})
 }

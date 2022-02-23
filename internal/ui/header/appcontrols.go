@@ -3,40 +3,36 @@ package header
 import (
 	"os"
 
+	"github.com/diamondburned/aqours/internal/gtkutil"
 	"github.com/diamondburned/aqours/internal/muse/playlist"
-	"github.com/gotk3/gotk3/glib"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 type AppControls struct {
-	gtk.MenuButton
-	// TODO
-	gtk.Box
-	OpenPlaylistButton gtk.Button
+	*gtk.Box
+	OpenPlaylistButton *gtk.Button
 }
 
 func NewAppControls(parent ParentController) *AppControls {
-	openBtn, _ := gtk.ButtonNewFromIconName("list-add-symbolic", gtk.ICON_SIZE_BUTTON)
-	openBtn.Connect("clicked", func() { spawnChooser(parent) })
+	openBtn := gtk.NewButtonFromIconName("list-add-symbolic")
+	openBtn.ConnectClicked(func() { spawnChooser(parent) })
 	openBtn.SetTooltipMarkup("Add Playlist")
-	openBtn.Show()
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 5)
-	box.PackStart(openBtn, false, false, 0)
-	box.Show()
+	box := gtk.NewBox(gtk.OrientationHorizontal, 5)
+	box.Append(openBtn)
 
 	return &AppControls{
-		Box:                *box,
-		OpenPlaylistButton: *openBtn,
+		Box:                box,
+		OpenPlaylistButton: openBtn,
 	}
 }
 
 func spawnChooser(parent ParentController) {
-	dialog, _ := gtk.FileChooserDialogNewWith2Buttons(
-		"Choose Playlist", parent.ToWindow(),
-		gtk.FILE_CHOOSER_ACTION_OPEN,
-		"Cancel", gtk.RESPONSE_CANCEL,
-		"Add", gtk.RESPONSE_ACCEPT,
+	dialog := gtk.NewFileChooserNative(
+		"Choose Playlist", gtkutil.ActiveWindow(),
+		gtk.FileChooserActionOpen, "Add", "Cancel",
 	)
 
 	p, err := os.Getwd()
@@ -44,25 +40,36 @@ func spawnChooser(parent ParentController) {
 		p = glib.GetUserDataDir()
 	}
 
-	ff, _ := gtk.FileFilterNew()
+	ff := gtk.NewFileFilter()
 	ff.SetName("Playlists")
 	for _, ext := range playlist.SupportedExtensions() {
 		ff.AddPattern("*" + ext)
 	}
 
 	dialog.SetFilter(ff)
-	dialog.SetLocalOnly(false)
-	dialog.SetCurrentFolder(p)
+	dialog.SetCurrentFolder(gio.NewFileForPath(p))
 	dialog.SetSelectMultiple(false)
+	dialog.ConnectResponse(func(id int) {
+		defer dialog.Destroy()
 
-	defer dialog.Close()
+		if id != int(gtk.ResponseAccept) {
+			return
+		}
 
-	if res := dialog.Run(); res != gtk.RESPONSE_ACCEPT {
-		return
-	}
+		fileList := dialog.Files()
 
-	names, _ := dialog.GetFilenames()
-	if len(names) == 1 {
-		parent.AddPlaylist(names[0])
-	}
+		for i := uint(0); true; i++ {
+			filer := fileList.Item(i).Cast().(gio.Filer)
+			if filer == nil {
+				continue
+			}
+
+			path := filer.Path()
+			if path == "" {
+				continue
+			}
+
+			parent.AddPlaylist(path)
+		}
+	})
 }

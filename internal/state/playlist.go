@@ -38,7 +38,7 @@ func convertPlaylist(state *State, orig *playlist.Playlist) *Playlist {
 		if !ok {
 			md = newMetadata(track)
 			state.metadata[track.Filepath] = md
-			state.unsaved = true
+			state.intern.unsaved = true
 		}
 
 		md.reference++
@@ -116,6 +116,8 @@ func (pl *Playlist) Remove(ixs ...int) {
 
 // Save saves the playlist. The function must not be called in another
 // goroutine. The done callback may be called in a goroutine.
+//
+// TODO: refactor this to Save() and WaitUntilSaved().
 func (pl *Playlist) Save(done func(error)) {
 	if !pl.IsUnsaved() {
 		done(nil)

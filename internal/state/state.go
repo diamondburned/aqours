@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/diamondburned/aqours/internal/muse/playlist"
-	"github.com/gotk3/gotk3/glib"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/pkg/errors"
 )
 
@@ -31,15 +31,30 @@ func getConfigDir() string {
 	return d
 }
 
-func failIf(b bool, e string) {
+func assert(b bool, e string) {
 	if b {
 		log.Panicln("BUG: assertion failed:", e)
 	}
 }
 
-type State struct {
+type stateIntern struct {
 	// onUpdate is called when a playing track is updated.
 	onUpdate func(s *State)
+	saving   sync.WaitGroup
+	unsaved  bool
+}
+
+func newStateIntern() *stateIntern {
+	return &stateIntern{
+		onUpdate: func(s *State) { s.intern.unsaved = true },
+	}
+}
+
+// TODO: State is due for another factor. It should be a fully public structure
+// with private save states. The caller should manually call state.Updated().
+
+type State struct {
+	intern *stateIntern
 
 	metadata      metadataMap
 	playlistNames []PlaylistName
@@ -51,40 +66,44 @@ type State struct {
 		QueuePos int   // relative to Queue
 	}
 
+	volume    float64
+	muted     bool
 	shuffling bool
 	repeating RepeatMode
-
-	saving  chan struct{}
-	unsaved bool
 }
 
+// NewState creates an empty state.
 func NewState() *State {
 	return &State{
-		onUpdate: func(s *State) { s.unsaved = true },
-
-		saving:    make(chan struct{}, 1),
 		metadata:  make(metadataMap),
 		playlists: make(map[PlaylistName]*Playlist),
+		volume:    100,
+		intern:    newStateIntern(),
 	}
 }
 
+// ReadFromFile reads the state from the user's state.
 func ReadFromFile() (*State, error) {
 	s, err := fileJSONState(stateFile)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read state file")
 	}
 
-	return makeStateFromJSON(s), nil
+	return makeStateFromJSON(s, newStateIntern()), nil
 }
 
 // OnTrackUpdate adds into the call stack a callback that is triggered when the
 // state is changed.
 func (s *State) OnUpdate(fn func(*State)) {
-	old := s.onUpdate
-	s.onUpdate = func(s *State) {
+	old := s.intern.onUpdate
+	s.intern.onUpdate = func(s *State) {
 		old(s)
 		fn(s)
 	}
+}
+
+func (s *State) onUpdate() {
+	s.intern.onUpdate(s)
 }
 
 // RefreshQueue refreshes completely the current play queue.
@@ -146,7 +165,7 @@ func (s *State) RenamePlaylist(p *Playlist, oldName string) {
 
 	pl.Name = p.Name
 
-	s.onUpdate(s)
+	s.onUpdate()
 }
 
 // AddPlaylist adds a playlist. If a playlist with the same name is added, then
@@ -163,7 +182,7 @@ func (s *State) AddPlaylist(p *playlist.Playlist) *Playlist {
 	s.playlists[p.Name] = playlist
 	s.playlistNames = append(s.playlistNames, p.Name)
 
-	s.onUpdate(s)
+	s.onUpdate()
 
 	return playlist
 }
@@ -180,7 +199,7 @@ func (s *State) DeletePlaylist(name string) {
 				s.SetPlayingPlaylist(nil)
 			}
 
-			s.onUpdate(s)
+			s.onUpdate()
 
 			return
 		}
@@ -191,7 +210,7 @@ func (s *State) DeletePlaylist(name string) {
 func (s *State) SetPlayingPlaylist(pl *Playlist) {
 	s.assertCoherentState()
 
-	defer s.onUpdate(s)
+	defer s.onUpdate()
 
 	s.playing.Playlist = pl
 	s.playing.QueuePos = 0 // reset QueuePos as well
@@ -256,7 +275,7 @@ func (s *State) SetShuffling(shuffling bool) {
 		return
 	}
 
-	defer s.onUpdate(s)
+	defer s.onUpdate()
 
 	s.shuffling = shuffling
 
@@ -292,7 +311,35 @@ func (s *State) SetRepeatMode(mode RepeatMode) {
 
 	s.repeating = mode
 
-	s.onUpdate(s)
+	s.onUpdate()
+}
+
+// Volume returns the current volume.
+func (s *State) Volume() float64 {
+	return s.volume
+}
+
+// SetVolume sets the volume.
+func (s *State) SetVolume(vol float64) {
+	if s.volume == vol {
+		return
+	}
+	s.volume = vol
+	s.onUpdate()
+}
+
+// IsMuted returns the current muted state.
+func (s *State) IsMuted() bool {
+	return s.muted
+}
+
+// SetMute sets the mute state.
+func (s *State) SetMute(muted bool) {
+	if s.muted == muted {
+		return
+	}
+	s.muted = muted
+	s.onUpdate()
 }
 
 // ReloadPlayQueue reloads the internal play queue for the currently playing
@@ -315,7 +362,7 @@ func (s *State) ReloadPlayQueue() {
 		playlist.ShuffleQueue(s.playing.Queue)
 	}
 
-	s.onUpdate(s)
+	s.onUpdate()
 }
 
 // Play plays the track indexed relative to the actual playlist. This does not
@@ -325,7 +372,7 @@ func (s *State) Play(index int) *Track {
 	// Only update QueuePos if we're not shuffling.
 	if !s.shuffling {
 		s.playing.QueuePos = index
-		defer s.onUpdate(s)
+		defer s.onUpdate()
 	}
 
 	return s.trackFromPlaylist(index)
@@ -333,21 +380,21 @@ func (s *State) Play(index int) *Track {
 
 func (s *State) trackFromQueue(index int) *Track {
 	// Bound check.
-	failIf(index < 0, "index is negative")
-	failIf(index >= len(s.playing.Queue), "given index is out of bounds in Play")
+	assert(index < 0, "index is negative")
+	assert(index >= len(s.playing.Queue), "given index is out of bounds in Play")
 
 	return s.trackFromPlaylist(s.playing.Queue[index])
 }
 
 func (s *State) trackFromPlaylist(index int) *Track {
 	// Ensure that we have an active playing playlist.
-	failIf(s.playing.Playlist == nil, "playing.Playlist is nil while Play is called")
+	assert(s.playing.Playlist == nil, "playing.Playlist is nil while Play is called")
 	// Assert the state after modifying the index.
 	s.assertCoherentState()
 
 	// Bound check.
-	failIf(index < 0, "index is negative")
-	failIf(index >= len(s.playing.Playlist.Tracks), "given index is out of bounds in Play")
+	assert(index < 0, "index is negative")
+	assert(index >= len(s.playing.Playlist.Tracks), "given index is out of bounds in Play")
 
 	return s.playing.Playlist.Tracks[index]
 }
@@ -383,7 +430,7 @@ func (s *State) move(forward, force bool) (int, *Track) {
 	// Only update the progress if we have something else to play.
 	if next > -1 {
 		s.playing.QueuePos = next
-		s.onUpdate(s)
+		s.onUpdate()
 	}
 	return next, track
 }
@@ -431,14 +478,7 @@ func (s *State) SaveState() {
 		return
 	}
 
-	if !s.unsaved {
-		return
-	}
-
-	select {
-	case s.saving <- struct{}{}:
-		// success
-	default:
+	if !s.intern.unsaved {
 		return
 	}
 
@@ -448,46 +488,49 @@ func (s *State) SaveState() {
 		return
 	}
 
-	s.unsaved = false
+	s.intern.unsaved = false
+	s.intern.saving.Add(1)
 
 	go func() {
 		if err := ioutil.WriteFile(stateFile, b, os.ModePerm); err != nil {
 			log.Println("failed to save JSON state:", err)
 		}
-
-		<-s.saving
+		s.intern.saving.Done()
 	}()
 }
 
+// SaveAll saves the state and all its playlists. It's asynchronous.
 func (s *State) SaveAll() {
-	b, err := json.Marshal(makeJSONState(s))
+	b, err := json.Marshal(s)
 	if err != nil {
 		log.Println("Failed to JSON marshal state:", err)
 		return
 	}
 
-	s.unsaved = false
+	s.intern.unsaved = false
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
+	s.intern.saving.Add(1)
+	s.intern.saving.Add(len(s.playlists))
 
 	go func() {
 		if err := ioutil.WriteFile(stateFile, b, os.ModePerm); err != nil {
 			log.Println("Failed to save JSON state:", err)
 		}
-		wg.Done()
+		s.intern.saving.Done()
 	}()
-
-	wg.Add(len(s.playlists))
 
 	for _, pl := range s.playlists {
 		pl.Save(func(err error) {
 			if err != nil {
 				log.Println("Failed to save playlist:", err)
 			}
-			wg.Done()
+			s.intern.saving.Done()
 		})
 	}
+}
 
-	wg.Wait()
+// WaitUntilSaved waits until all the saving routines are done. This is useful
+// for implementing a loading bar.
+func (s *State) WaitUntilSaved() {
+	s.intern.saving.Wait()
 }

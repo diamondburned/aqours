@@ -2,7 +2,7 @@ package header
 
 import (
 	"github.com/diamondburned/aqours/internal/state"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 type PlaylistInfo struct {
@@ -11,11 +11,10 @@ type PlaylistInfo struct {
 }
 
 func NewPlaylistInfo() *PlaylistInfo {
-	name, _ := gtk.LabelNew("")
+	name := gtk.NewLabel("")
 	name.SetYAlign(0)
-	name.SetVAlign(gtk.ALIGN_CENTER)
+	name.SetVAlign(gtk.AlignCenter)
 	name.SetSingleLineMode(true)
-	name.Show()
 
 	info := &PlaylistInfo{
 		Label: *name,

@@ -3,7 +3,7 @@ package content
 import (
 	"github.com/diamondburned/aqours/internal/ui/content/bar"
 	"github.com/diamondburned/aqours/internal/ui/content/body"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 type ParentController interface {
@@ -16,30 +16,25 @@ type Container struct {
 
 	Body *body.Container
 	Bar  *bar.Container
-	Vis  *bar.Visualizer
 }
 
 func NewContainer(parent ParentController) Container {
 	body := body.NewContainer(parent)
-	body.Show()
+	body.SetHExpand(true)
 
-	separator, _ := gtk.SeparatorNew(gtk.ORIENTATION_VERTICAL)
-	separator.Show()
+	separator := gtk.NewSeparator(gtk.OrientationVertical)
 
-	vis := bar.NewVisualizer(parent)
-	vis.Show()
+	bar := bar.NewContainer(parent)
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	box.PackStart(body, true, true, 0)
-	box.PackStart(separator, false, false, 0)
-	box.PackStart(vis, false, false, 0)
+	box := gtk.NewBox(gtk.OrientationVertical, 0)
 	box.SetHExpand(true)
-	box.Show()
+	box.Append(body)
+	box.Append(separator)
+	box.Append(bar)
 
 	return Container{
 		ContentBox: box,
 		Body:       body,
-		Bar:        vis.Container,
-		Vis:        vis,
+		Bar:        bar,
 	}
 }
