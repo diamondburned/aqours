@@ -2,8 +2,8 @@ github.com/dhowden/tag v0.0.0-20200828214007-46e57f75dbfc h1:8ndBJ8cTZwp5Qtl5fnG
 github.com/dhowden/tag v0.0.0-20200828214007-46e57f75dbfc/go.mod h1:SniNVYuaD1jmdEEvi+7ywb1QFR7agjeTdGKyFb0p7Rw=
 github.com/diamondburned/audpl v0.0.0-20201107052523-20d1b6c126e7 h1:Dgx4rdfcxY+DhJXowfIUY17Tt3G9ndN9yxnRLbSFiU8=
 github.com/diamondburned/audpl v0.0.0-20201107052523-20d1b6c126e7/go.mod h1:KT42fQJB9VDjTgtvToaw3znWShn7nS3aJ6n0QmCx1Bg=
-github.com/diamondburned/gotk4/pkg v0.0.0-20220223032658-8c9b3cf4c5db h1:PAqE44btRjJYANVp4yfNccsn9kD7FKyb6+A2OpJaPOU=
-github.com/diamondburned/gotk4/pkg v0.0.0-20220223032658-8c9b3cf4c5db/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
+github.com/diamondburned/gotk4/pkg v0.0.0-20220224183509-a424ccf7497a h1:ds5PDUaU41TdRQxzH8iFXURaQudMMixehWPCsYsTW90=
+github.com/diamondburned/gotk4/pkg v0.0.0-20220224183509-a424ccf7497a/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/diamondburned/mpvipc v0.0.0-20201209233959-abc9af4dc0af h1:ieA6nTXvTfZDMIMXbGtcwaqqvVz72XPXp0GY7PA0M6k=
 github.com/diamondburned/mpvipc v0.0.0-20201209233959-abc9af4dc0af/go.mod h1:MOb+Drd+EFz0VPj7rIvOWoXSujs55jAL7MGCUQIrM7M=
 github.com/go-test/deep v1.0.7 h1:/VSMRlnY/JSyqxQUzQLKVMAskpY/NZKFA5j2P+0pP2M=

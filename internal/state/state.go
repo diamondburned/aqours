@@ -92,6 +92,11 @@ func ReadFromFile() (*State, error) {
 	return makeStateFromJSON(s, newStateIntern()), nil
 }
 
+// MarkChanged marks the state as changed (unsaved).
+func (s *State) MarkChanged() {
+	s.intern.unsaved = true
+}
+
 // OnTrackUpdate adds into the call stack a callback that is triggered when the
 // state is changed.
 func (s *State) OnUpdate(fn func(*State)) {

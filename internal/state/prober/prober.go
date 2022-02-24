@@ -2,7 +2,7 @@ package prober
 
 import (
 	"log"
-	"runtime"
+	"sync"
 
 	"github.com/diamondburned/aqours/internal/muse/playlist"
 	"github.com/diamondburned/aqours/internal/state"
@@ -26,22 +26,65 @@ func NewJob(track *state.Track, done func()) Job {
 	}
 }
 
+// This is quite arbitrary, but it should be fast enough on a local disk and
+// doesn't clog much on a remote mount.
+var maxJobs = 4
+
+// Variables needed for dynamically scaling workers.
 var (
-	maxJobs    = runtime.GOMAXPROCS(-1) * 2
-	probeQueue = make(chan Job, maxJobs+1)
+	runningMut   sync.Mutex
+	probeQueue   chan Job
+	probingGroup sync.WaitGroup
 )
 
-func init() {
+func ensureRunning() {
+	// log.Println("worker group++")
+	probingGroup.Add(1)
+
+	runningMut.Lock()
+	defer runningMut.Unlock()
+
+	if probeQueue != nil {
+		return
+	}
+
+	probeQueue = make(chan Job)
+	startRunning(probeQueue)
+}
+
+func stopRunning() {
+	// log.Println("worker group--")
+	probingGroup.Done()
+}
+
+func startRunning(queue <-chan Job) {
+	// log.Println("starting prober workers")
+
+	go func() {
+		probingGroup.Wait()
+
+		runningMut.Lock()
+		defer runningMut.Unlock()
+
+		// Kill all current workers.
+		if queue == probeQueue {
+			close(probeQueue)
+			probeQueue = nil
+		}
+	}()
+
 	// Go is probably efficient enough to make this a minor issue.
 	for i := 0; i < maxJobs; i++ {
 		go func() {
-			for job := range probeQueue {
-				job := job // copy must
+			// log.Println("worker started")
+			// defer log.Println("worker stopped")
+
+			for job := range queue {
+				job := job // copy for IdleAdd
 
 				// Probe and update the copy.
 				if err := job.cpy.ForceProbe(); err != nil {
-					log.Printf("Failed to probe %q: %v", job.cpy.Filepath, err)
-					continue
+					log.Printf("error probing %q: %v", job.cpy.Filepath, err)
 				}
 
 				glib.IdleAdd(func() {
@@ -60,25 +103,12 @@ func Queue(jobs ...Job) {
 		return
 	}
 
-	// Try and delegate as many jobs into the queue as possible without spawning
-	// goroutines.
-	var tried int
-TryQueue:
-	for _, job := range jobs {
-		select {
-		case probeQueue <- job:
-			tried++
-		default:
-			break TryQueue
-		}
-	}
+	go func() {
+		ensureRunning()
+		defer stopRunning()
 
-	// Last resort to queue the remaining jobs in goroutines.
-	if tried < len(jobs) {
-		go func() {
-			for _, job := range jobs[tried:] {
-				probeQueue <- job
-			}
-		}()
-	}
+		for _, job := range jobs {
+			probeQueue <- job
+		}
+	}()
 }

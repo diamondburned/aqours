@@ -15,8 +15,9 @@ import (
 
 // BindActionMap binds the given map of actions (of key prefixed appropriately)
 // to the given widget.
-func BindActionMap(w gtk.Widgetter, m map[string]func()) {
+func BindActionMap(wd gtk.Widgetter, m map[string]func()) {
 	actions := make(map[string]*gio.SimpleActionGroup)
+	w := gtk.BaseWidget(wd)
 
 	for k, v := range m {
 		parts := strings.SplitN(k, ".", 2)
@@ -27,8 +28,7 @@ func BindActionMap(w gtk.Widgetter, m map[string]func()) {
 		group, ok := actions[parts[0]]
 		if !ok {
 			group = gio.NewSimpleActionGroup()
-			gtk.BaseWidget(w).InsertActionGroup(parts[0], group)
-
+			w.InsertActionGroup(parts[0], group)
 			actions[parts[0]] = group
 		}
 
@@ -60,27 +60,39 @@ const PopoverWidth = 150
 // NewPopoverMenu creates a new Popover menu.
 func NewPopoverMenu(w gtk.Widgetter, pos gtk.PositionType, menu gio.MenuModeller) *gtk.PopoverMenu {
 	popover := gtk.NewPopoverMenuFromModel(menu)
-	popover.SetMnemonicsVisible(true)
-	popover.SetSizeRequest(PopoverWidth, -1)
-	popover.SetPosition(pos)
 	popover.SetParent(w)
-	popover.ConnectHide(popover.Unparent)
+	popover.SetPosition(pos)
+	popover.SetSizeRequest(PopoverWidth, -1)
+	popover.SetMnemonicsVisible(true)
+	popover.ConnectClosed(func() {
+		glib.TimeoutSecondsAdd(5, popover.Unparent)
+	})
 	return popover
+}
+
+// NewPopoverMenuAt is a convenient function for NewPopoverMenu and
+// SetPointingTo.
+func NewPopoverMenuAt(w gtk.Widgetter, pos gtk.PositionType, x, y float64, menu gio.MenuModeller) *gtk.PopoverMenu {
+	rect := gdk.NewRectangle(int(x), int(y), 0, 0)
+	p := NewPopoverMenu(w, pos, menu)
+	p.SetPointingTo(&rect)
+	return p
 }
 
 // BindPopoverMenu binds the menu popover at the given position for the given
 // widget.
 func BindPopoverMenu(wd gtk.Widgetter, pos gtk.PositionType, menu gio.MenuModeller) {
+	BindRightClick(wd, func(x, y float64) {
+		p := NewPopoverMenuAt(wd, pos, x, y, menu)
+		p.Popup()
+	})
+}
+
+func BindRightClick(wd gtk.Widgetter, f func(x, y float64)) {
 	rclick := gtk.NewGestureClick()
 	rclick.SetExclusive(true)
 	rclick.SetButton(gdk.BUTTON_SECONDARY)
-	rclick.ConnectPressed(func(n int, x, y float64) {
-		rect := gdk.NewRectangle(int(x), int(y), 0, 0)
-
-		p := NewPopoverMenu(wd, pos, menu)
-		p.SetPointingTo(&rect)
-		p.Popup()
-	})
+	rclick.ConnectPressed(func(n int, x, y float64) { f(x, y) })
 
 	w := gtk.BaseWidget(wd)
 	w.AddController(rclick)

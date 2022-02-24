@@ -144,81 +144,59 @@ func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 	// list, we could have a remove track and add path functions. The add
 	// function would simply treat the track as an unprocessed one.
 
-	// tree.EnableModelDragDest(trackListDragTargets, gdk.ActionLink)
+	// TODO: Add this back once we can reliably create bindings for GTK v4.5.0.
 
-	drop := gtk.NewDropTarget(glib.TypeInvalid, gdk.ActionLink)
-	drop.SetGTypes([]glib.Type{
-		gio.GTypeFile,
-		// gdk.GTypeF
-		// glib.TypeFromName("GFile"),
-		// glib.TypeFromName("Gdk.FileList"),
-	})
-	drop.ConnectDrop(func(value glib.Value, x, y float64) bool {
-		path, pos, ok := tree.DestRowAtPos(int(x), int(y))
-		if !ok {
-			log.Println("No path found at dragged pos.")
-			return false
-		}
+	// drop := gtk.NewDropTarget(glib.TypeInvalid, gdk.ActionLink)
+	// drop.SetGTypes([]glib.Type{
+	// 	gio.GTypeFile,
+	// 	// gdk.GTypeF
+	// 	// glib.TypeFromName("GFile"),
+	// 	// glib.TypeFromName("Gdk.FileList"),
+	// })
+	// drop.ConnectDrop(func(value glib.Value, x, y float64) bool {
+	// 	switch v := value.GoValue().(type) {
+	// 	case gio.Filer:
+	// 		log.Println("got path", v.Path())
+	// 	default:
+	// 		log.Printf("dropped unknown value of type %T", v)
+	// 	}
+	// 	return true
+	// })
+	// tree.AddController(drop)
 
-		before := false ||
-			pos == gtk.TreeViewDropBefore ||
-			pos == gtk.TreeViewDropIntoOrBefore
-
-		_ = before
-		_ = path
-
-		switch v := value.GoValue().(type) {
-		case gio.Filer:
-			log.Println("got path", v.Path())
-		default:
-			log.Printf("dropped unknown value of type %T", v)
-		}
-
-		return true
-	})
-	tree.AddController(drop)
-
-	/*
-		tree.Connect("drag-data-received",
-			func(_ gtk.Widgetter, ctx *gdk.DragContext, x, y int, data *gtk.SelectionData) {
-				if dataLen := data.GetLength(); dataLen < 1 || dataLen > maxDataSize {
-					return
-				}
-				// Get the files in form of line-delimited URIs
-				var uris = string(data.GetData())
-
-				path, pos, ok := tree.DestRowAtPos(x, y)
-				if !ok {
-				}
-
-				tree.SetSensitive(false)
-
-				go func() {
-					var paths = parseURIList(uris)
-
-					glib.IdleAdd(func() {
-						tree.SetSensitive(true)
-						if len(paths) > 0 {
-							list.addTracksAt(path, before, paths)
-						}
-					})
-				}()
-			},
-		)
-	*/
-
+	// Bind the Delete key and such.
 	tree.AddController(list.keyEventController())
 
-	gtkutil.BindActionMap(tree, map[string]func(){
-		"tracklist.refresh": list.refreshSelected,
-		"tracklist.sort":    list.sortSelectedTracks,
+	menu := gtkutil.MenuPair([][2]string{
+		{"Add _Tracks...", "tracklist.add-files"},
+		{"Add _Folders...", "tracklist.add-folders"},
+		{"Refresh _Metadata", "tracklist.refresh"},
+		{"_Sort", "tracklist.sort"},
+		{"Remove", "tracklist.remove"},
 	})
 
-	menu := gtkutil.MenuPair([][2]string{
-		{"Refresh Metadata", "tracklist.refresh"},
-		{"Sort", "tracklist.sort"},
+	// Hacks.
+	var menuX, menuY float64
+	gtkutil.BindRightClick(tree, func(x, y float64) {
+		menuX, menuY = x, y
+
+		// This is supposed to be relative to tree's coords, but that happens to
+		// match with scroll's.
+		p := gtkutil.NewPopoverMenuAt(scroll, gtk.PosBottom, x, y, menu)
+		p.Popup()
 	})
-	gtkutil.BindPopoverMenu(tree, gtk.PosBottom, menu)
+
+	gtkutil.BindActionMap(scroll, map[string]func(){
+		"tracklist.refresh": list.refreshSelected,
+		"tracklist.sort":    list.sortSelectedTracks,
+		"tracklist.remove":  list.removeSelected,
+		"tracklist.add-files": func() {
+			list.promptAddTracks(menuX, menuY, gtk.FileChooserActionOpen)
+		},
+		"tracklist.add-folders": func() {
+			list.promptAddTracks(menuX, menuY, gtk.FileChooserActionSelectFolder)
+		},
+	})
 
 	trackTooltip := newTrackTooltipBox()
 
@@ -327,6 +305,50 @@ func (list *TrackList) keyEventController() *gtk.EventControllerKey {
 
 func modIsPressed(mod, press gdk.ModifierType) bool {
 	return mod&press == press
+}
+
+func (list *TrackList) promptAddTracks(x, y float64, action gtk.FileChooserAction) {
+	path, pos, ok := list.Tree.DestRowAtPos(int(x), int(y))
+	if !ok {
+		log.Printf("no path found at dragged pos (%.0f, %.0f)", x, y)
+		return
+	}
+
+	before := false ||
+		pos == gtk.TreeViewDropBefore ||
+		pos == gtk.TreeViewDropIntoOrBefore
+
+	var title string
+	switch action {
+	case gtk.FileChooserActionOpen:
+		title = "Add Files"
+	case gtk.FileChooserActionSelectFolder:
+		title = "Add Folders"
+	}
+
+	chooser := gtk.NewFileChooserNative(title, gtkutil.ActiveWindow(), action, "Add", "Cancel")
+	chooser.SetSelectMultiple(true)
+	chooser.ConnectResponse(func(resp int) {
+		if resp != int(gtk.ResponseAccept) {
+			return
+		}
+
+		fList := chooser.Files()
+		fileN := fList.NItems()
+		paths := make([]string, 0, fileN)
+
+		for i := uint(0); i < fileN; i++ {
+			item := fList.Item(i)
+			file := item.Cast().(gio.Filer)
+
+			if path := file.Path(); path != "" {
+				paths = append(paths, file.Path())
+			}
+		}
+
+		list.addTracksAt(path, before, paths)
+	})
+	chooser.Show()
 }
 
 func (list *TrackList) addTracksAt(path *gtk.TreePath, before bool, paths []string) {

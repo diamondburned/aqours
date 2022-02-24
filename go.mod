@@ -10,7 +10,7 @@ require (
 	github.com/DexterLB/mpvipc v0.0.0-20190216161438-2a226fa01bbd
 	github.com/dhowden/tag v0.0.0-20200828214007-46e57f75dbfc
 	github.com/diamondburned/audpl v0.0.0-20201107052523-20d1b6c126e7
-	github.com/diamondburned/gotk4/pkg v0.0.0-20220223032658-8c9b3cf4c5db
+	github.com/diamondburned/gotk4/pkg v0.0.0-20220224183509-a424ccf7497a
 	github.com/go-test/deep v1.0.7
 	github.com/godbus/dbus/v5 v5.0.3
 	github.com/lithammer/fuzzysearch v1.1.1

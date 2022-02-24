@@ -69,7 +69,7 @@ func (t *Track) UpdateMetadata(i playlist.Track) {
 	md.Track = i
 
 	// Mark as unsaved.
-	t.playlist.state.intern.unsaved = true
+	t.playlist.state.MarkChanged()
 }
 
 // Metadata returns a copy of the current track's metadata with the filepath
