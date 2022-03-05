@@ -59,6 +59,7 @@ func (t *Track) ForceProbe() error {
 	// Try and keep the old metadata the same, as playlist loaders might somehow
 	// derive it.
 	if title == "" {
+		t.Unprobeable = true
 		return nil
 	}
 

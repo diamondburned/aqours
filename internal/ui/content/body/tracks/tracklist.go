@@ -1,6 +1,7 @@
 package tracks
 
 import (
+	"io/fs"
 	"log"
 	"net/url"
 	"os"
@@ -319,11 +320,15 @@ func (list *TrackList) promptAddTracks(x, y float64, action gtk.FileChooserActio
 		pos == gtk.TreeViewDropIntoOrBefore
 
 	var title string
+	var isDir bool
+
 	switch action {
 	case gtk.FileChooserActionOpen:
 		title = "Add Files"
+		isDir = false
 	case gtk.FileChooserActionSelectFolder:
 		title = "Add Folders"
+		isDir = true
 	}
 
 	chooser := gtk.NewFileChooserNative(title, gtkutil.ActiveWindow(), action, "Add", "Cancel")
@@ -346,36 +351,79 @@ func (list *TrackList) promptAddTracks(x, y float64, action gtk.FileChooserActio
 			}
 		}
 
-		list.addTracksAt(path, before, paths)
+		list.addTracksAt(path, before, paths, isDir)
 	})
 	chooser.Show()
 }
 
-func (list *TrackList) addTracksAt(path *gtk.TreePath, before bool, paths []string) {
-	ix := path.Indices()[0]
+func (list *TrackList) addTracksAt(path *gtk.TreePath, before bool, paths []string, isDir bool) {
+	addPaths := func() {
+		ix := path.Indices()[0]
+		start, end := list.Playlist.Add(ix, before, paths...)
+		probeQueue := make([]prober.Job, 0, end-start)
 
-	start, end := list.Playlist.Add(ix, before, paths...)
-	probeQueue := make([]prober.Job, 0, end-start)
+		for i := start; i < end; i++ {
+			row := &TrackRow{
+				Iter: list.Store.Insert(i),
+				Bold: false,
+			}
+			track := list.Playlist.Tracks[i]
 
-	for i := start; i < end; i++ {
-		row := &TrackRow{
-			Iter: list.Store.Insert(i),
-			Bold: false,
-		}
-		track := list.Playlist.Tracks[i]
-
-		row.setListStore(track, list.Store)
-		list.TrackRows[track] = row
-
-		job := prober.NewJob(track, func() {
 			row.setListStore(track, list.Store)
-		})
+			list.TrackRows[track] = row
 
-		probeQueue = append(probeQueue, job)
+			job := prober.NewJob(track, func() {
+				row.setListStore(track, list.Store)
+			})
+
+			probeQueue = append(probeQueue, job)
+		}
+
+		list.parent.UpdateTracks(list.Playlist)
+		prober.Queue(probeQueue...)
 	}
 
-	list.parent.UpdateTracks(list.Playlist)
-	prober.Queue(probeQueue...)
+	if !isDir {
+		addPaths()
+		return
+	}
+
+	go func() {
+		walkedPaths := make([]string, 0, len(paths))
+
+		for _, path := range paths {
+			s, err := os.Stat(path)
+			if err != nil {
+				log.Println("cannot stat adding path:", err)
+				continue
+			}
+
+			if !s.IsDir() {
+				walkedPaths = append(walkedPaths, path)
+				continue
+			}
+
+			err = fs.WalkDir(
+				os.DirFS("/"), strings.TrimPrefix(path, "/"), // fs to os
+				func(path string, s fs.DirEntry, err error) error {
+					if err != nil {
+						return err
+					}
+					if !s.IsDir() {
+						walkedPaths = append(walkedPaths, "/"+path)
+					}
+					return nil
+				},
+			)
+			if err != nil {
+				log.Println("cannot walk adding path:", err)
+				continue
+			}
+		}
+
+		paths = walkedPaths
+		glib.IdleAdd(addPaths)
+	}()
 }
 
 func (list *TrackList) removeSelected() {
@@ -437,10 +485,14 @@ func (list *TrackList) refreshSelected() {
 
 	for i, ix := range selectIx {
 		track := list.Playlist.Tracks[ix]
-		probeQueue[i] = prober.NewJob(track, func() {
+
+		j := prober.NewJob(track, func() {
 			row := list.TrackRows[track]
 			row.setListStore(track, list.Store)
 		})
+		j.Force = true
+
+		probeQueue[i] = j
 	}
 
 	prober.Queue(probeQueue...)
@@ -472,8 +524,7 @@ func (list *TrackList) SetPlaying(playing *state.Track) {
 	// behavior.
 	reselect := list.playing == nil
 
-	if list.playing != nil {
-		playingRow := list.TrackRows[list.playing]
+	if playingRow, ok := list.TrackRows[list.playing]; ok {
 		playingRow.SetBold(list.Store, false)
 
 		// Decide if we should move the selection.

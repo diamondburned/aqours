@@ -15,6 +15,8 @@ type Job struct {
 	done func() // called in glib
 	ptr  *state.Track
 	cpy  playlist.Track
+	// Force, if true, forces a reprobe.
+	Force bool
 }
 
 // NewJob creates a new job. done will be called in the glib main thread.
@@ -82,8 +84,15 @@ func startRunning(queue <-chan Job) {
 			for job := range queue {
 				job := job // copy for IdleAdd
 
-				// Probe and update the copy.
-				if err := job.cpy.ForceProbe(); err != nil {
+				var err error
+				if job.Force {
+					// Probe and update the copy.
+					err = job.cpy.ForceProbe()
+				} else {
+					err = job.cpy.Probe()
+				}
+
+				if err != nil {
 					log.Printf("error probing %q: %v", job.cpy.Filepath, err)
 				}
 

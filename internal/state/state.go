@@ -95,6 +95,7 @@ func ReadFromFile() (*State, error) {
 // MarkChanged marks the state as changed (unsaved).
 func (s *State) MarkChanged() {
 	s.intern.unsaved = true
+	s.onUpdate()
 }
 
 // OnTrackUpdate adds into the call stack a callback that is triggered when the
