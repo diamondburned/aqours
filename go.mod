@@ -1,6 +1,6 @@
 module github.com/diamondburned/aqours
 
-go 1.15
+go 1.17
 
 replace github.com/DexterLB/mpvipc => github.com/diamondburned/mpvipc v0.0.0-20201209233959-abc9af4dc0af
 
