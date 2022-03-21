@@ -26,6 +26,8 @@ type ParentPlaylistController interface {
 	// SaveCurrentPlaylist saves the current playlist and marks the playlist
 	// name as saved.
 	SaveCurrentPlaylist()
+	// SortSelectedTracks sorts the selected songs.
+	SortSelectedTracks()
 }
 
 type PlaylistControls struct {
@@ -49,6 +51,7 @@ func NewPlaylistControls(parent ParentPlaylistController) *PlaylistControls {
 
 	hamMenu.AddAction("Rename Playlist", func() { spawnRenameDialog(parent) })
 	hamMenu.AddAction("Save Playlist", parent.SaveCurrentPlaylist)
+	hamMenu.AddAction("Sort Selected Tracks", parent.SortSelectedTracks)
 
 	return &PlaylistControls{
 		Revealer:  *rev,

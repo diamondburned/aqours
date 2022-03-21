@@ -364,6 +364,12 @@ func (w *MainWindow) playTrack(track *state.Track) {
 	w.state.SaveState()
 }
 
+// SortSelectedTracks sorts the selected tracks.
+func (w *MainWindow) SortSelectedTracks() {
+	list := w.Body.TracksView.SelectPlaylist(w.state.PlayingPlaylist())
+	list.SortSelected()
+}
+
 func (w *MainWindow) SelectPlaylist(name string) {
 	pl, ok := w.state.Playlist(name)
 	if !ok {

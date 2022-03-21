@@ -18,6 +18,7 @@ type ParentController interface {
 	HasPlaylist(name string) bool
 	SavePlaylist(pl *state.Playlist)
 	RenamePlaylist(pl *state.Playlist, newName string) bool
+	SortSelectedTracks()
 }
 
 var bitrateCSS = css.PrepareClass("bitrate", `

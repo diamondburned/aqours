@@ -189,7 +189,7 @@ func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 
 	gtkutil.BindActionMap(scroll, map[string]func(){
 		"tracklist.refresh": list.refreshSelected,
-		"tracklist.sort":    list.sortSelectedTracks,
+		"tracklist.sort":    list.SortSelected,
 		"tracklist.remove":  list.removeSelected,
 		"tracklist.add-files": func() {
 			list.promptAddTracks(menuX, menuY, gtk.FileChooserActionOpen)
@@ -444,7 +444,8 @@ func (list *TrackList) removeSelected() {
 	list.parent.UpdateTracks(list.Playlist)
 }
 
-func (list *TrackList) sortSelectedTracks() {
+// SortSelected sorts the selected tracks.
+func (list *TrackList) SortSelected() {
 	_, selectedRows := list.Select.SelectedRows()
 	selectMin := -1
 	selectMax := -1
