@@ -16,5 +16,11 @@ require (
 	github.com/lithammer/fuzzysearch v1.1.1
 	github.com/pkg/errors v0.9.1
 	github.com/ushis/m3u v0.0.0-20150127162843-94396b784733
+)
+
+require (
+	go4.org/unsafe/assume-no-moving-gc v0.0.0-20201222180813-1025295fd063 // indirect
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
+	golang.org/x/text v0.3.2 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 )
