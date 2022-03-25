@@ -104,12 +104,14 @@ func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 	var probeQueue []prober.Job
 
 	for _, track := range pl.Tracks {
-		row := &TrackRow{
-			Iter: list.Store.Append(),
-			Bold: false,
-		}
+		iter := list.Store.Append()
+		path := list.Store.Path(iter)
 
-		row.setListStore(track, list.Store)
+		row := &TrackRow{Bold: false}
+		row.iter.path = path
+		row.iter.store = list.Store
+
+		row.setListStore(track)
 		list.TrackRows[track] = row
 
 		if !track.Metadata().IsProbed() {
@@ -121,7 +123,7 @@ func NewTrackList(parent ParentController, pl *state.Playlist) *TrackList {
 			track := track // copy pointer
 
 			job := prober.NewJob(track, func() {
-				row.setListStore(track, list.Store)
+				row.setListStore(track)
 				pl.SetUnsaved()
 			})
 
@@ -363,17 +365,20 @@ func (list *TrackList) addTracksAt(path *gtk.TreePath, before bool, paths []stri
 		probeQueue := make([]prober.Job, 0, end-start)
 
 		for i := start; i < end; i++ {
-			row := &TrackRow{
-				Iter: list.Store.Insert(i),
-				Bold: false,
-			}
+			iter := list.Store.Insert(i)
+			path := list.Store.Path(iter)
+
+			row := &TrackRow{Bold: false}
+			row.iter.path = path
+			row.iter.store = list.Store
+
 			track := list.Playlist.Tracks[i]
 
-			row.setListStore(track, list.Store)
+			row.setListStore(track)
 			list.TrackRows[track] = row
 
 			job := prober.NewJob(track, func() {
-				row.setListStore(track, list.Store)
+				row.setListStore(track)
 			})
 
 			probeQueue = append(probeQueue, job)
@@ -437,7 +442,7 @@ func (list *TrackList) removeSelected() {
 		trRow := list.TrackRows[track]
 
 		delete(list.TrackRows, track)
-		list.Store.Remove(trRow.Iter)
+		trRow.Remove()
 	}
 
 	list.Playlist.Remove(selectIx...)
@@ -489,7 +494,7 @@ func (list *TrackList) refreshSelected() {
 
 		j := prober.NewJob(track, func() {
 			row := list.TrackRows[track]
-			row.setListStore(track, list.Store)
+			row.setListStore(track)
 		})
 		j.Force = true
 
@@ -506,10 +511,8 @@ func (list *TrackList) SelectPlaying() {
 	}
 
 	list.Select.UnselectAll()
-	list.Select.SelectIter(rw.Iter)
-
-	path := list.Store.Path(rw.Iter)
-	list.Tree.ScrollToCell(path, nil, true, 0.5, 0.0)
+	list.Select.SelectPath(rw.Path())
+	list.Tree.ScrollToCell(rw.Path(), nil, true, 0.5, 0.0)
 }
 
 // SetPlaying unbolds the last track (if any) and bolds the given track. It does
@@ -530,18 +533,16 @@ func (list *TrackList) SetPlaying(playing *state.Track) {
 
 		// Decide if we should move the selection.
 		selectedRows := list.Select.CountSelectedRows()
-		reselect = selectedRows == 1 && list.Select.IterIsSelected(playingRow.Iter)
+		reselect = selectedRows == 1 && list.Select.PathIsSelected(playingRow.Path())
 
 		if reselect {
-			list.Select.UnselectIter(playingRow.Iter)
+			list.Select.UnselectPath(playingRow.Path())
 		}
 	}
 
 	if reselect {
-		list.Select.SelectIter(rw.Iter)
-
-		path := list.Store.Path(rw.Iter)
-		list.Tree.ScrollToCell(path, nil, false, 0, 0)
+		list.Select.SelectPath(rw.Path())
+		list.Tree.ScrollToCell(rw.Path(), nil, false, 0, 0)
 	}
 
 	list.playing = playing

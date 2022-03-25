@@ -98,15 +98,43 @@ func newColumn(text string, col columnType) *gtk.TreeViewColumn {
 
 type TrackRow struct {
 	Bold bool
-	Iter *gtk.TreeIter
+	iter struct {
+		path  *gtk.TreePath
+		store *gtk.ListStore
+	}
+	// Path *gtk.TreePath
+}
+
+func (row *TrackRow) Iter() (*gtk.TreeIter, bool) {
+	return row.iter.store.Iter(row.iter.path)
+}
+
+func (row *TrackRow) Path() *gtk.TreePath { return row.iter.path }
+
+func (row *TrackRow) Remove() bool {
+	if iter, ok := row.Iter(); ok {
+		row.iter.store.Remove(iter)
+		return true
+	}
+	return false
 }
 
 func (row *TrackRow) SetBold(store *gtk.ListStore, bold bool) {
+	it, ok := row.Iter()
+	if !ok {
+		return
+	}
+
 	row.Bold = bold
-	store.SetValue(row.Iter, columnSelected, glib.NewValue(weight(row.Bold)))
+	store.SetValue(it, columnSelected, glib.NewValue(weight(row.Bold)))
 }
 
-func (row *TrackRow) setListStore(t *state.Track, store *gtk.ListStore) {
+func (row *TrackRow) setListStore(t *state.Track) {
+	it, ok := row.Iter()
+	if !ok {
+		return
+	}
+
 	metadata := t.Metadata()
 
 	searchData := strings.Builder{}
@@ -118,8 +146,8 @@ func (row *TrackRow) setListStore(t *state.Track, store *gtk.ListStore) {
 	searchData.WriteByte(' ')
 	searchData.WriteString(metadata.Filepath)
 
-	store.Set(
-		row.Iter,
+	row.iter.store.Set(
+		it,
 		[]int{
 			columnTitle,
 			columnArtist,

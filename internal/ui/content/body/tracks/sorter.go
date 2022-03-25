@@ -7,10 +7,18 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
+// noopSort does nothing.
+type noopSort struct{}
+
+func (noopSort) Len() int           { return 0 }
+func (noopSort) Less(i, j int) bool { return false }
+func (noopSort) Swap(i, j int)      {}
+
 type trackSorter struct {
 	store  *gtk.ListStore
 	rows   map[*state.Track]*TrackRow
 	tracks []*state.Track
+	iters  []*gtk.TreeIter
 }
 
 type trackMetadata struct {
@@ -19,10 +27,22 @@ type trackMetadata struct {
 }
 
 func newTrackSorter(list *TrackList, start, end int) sort.Interface {
+	tracks := list.Playlist.Tracks[start:end]
+	iters := make([]*gtk.TreeIter, len(tracks))
+
+	for i, track := range tracks {
+		it, ok := list.TrackRows[track].Iter()
+		if !ok {
+			return noopSort{}
+		}
+		iters[i] = it
+	}
+
 	return trackSorter{
 		store:  list.Store,
 		rows:   list.TrackRows,
-		tracks: list.Playlist.Tracks[start:end],
+		tracks: tracks,
+		iters:  iters,
 	}
 }
 
@@ -38,11 +58,7 @@ func (sorter trackSorter) Less(i, j int) bool {
 }
 
 func (sorter trackSorter) Swap(i, j int) {
-	rowA := sorter.rows[sorter.tracks[i]]
-	rowB := sorter.rows[sorter.tracks[j]]
-	sorter.store.Swap(rowA.Iter, rowB.Iter)
-
-	// This should work, since it shares the same backing array.
+	sorter.store.Swap(sorter.iters[i], sorter.iters[j])
 	sorter.tracks[i], sorter.tracks[j] = sorter.tracks[j], sorter.tracks[i]
 }
 
