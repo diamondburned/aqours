@@ -562,7 +562,6 @@ func selectedIxs(sel *gtk.TreeSelection) []int {
 
 	selectIxs := make([]int, len(selectedRows))
 	for i, selected := range selectedRows {
-		log.Println("seeing selected path", selected)
 		selectIxs[i] = selected.Indices()[0]
 	}
 
