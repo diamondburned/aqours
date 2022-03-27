@@ -432,20 +432,25 @@ func (list *TrackList) addTracksAt(path *gtk.TreePath, before bool, paths []stri
 }
 
 func (list *TrackList) removeSelected() {
-	selectIx := selectedIxs(list.Select)
-	if len(selectIx) == 0 {
+	selectIxs := selectedIxs(list.Select)
+	if len(selectIxs) == 0 {
 		return
 	}
 
-	for _, ix := range selectIx {
+	// Sort the selected indexes in reverse to remove them in that order.
+	sort.Sort(sort.Reverse(sort.IntSlice(selectIxs)))
+
+	for _, ix := range selectIxs {
 		track := list.Playlist.Tracks[ix]
 		trRow := list.TrackRows[track]
 
 		delete(list.TrackRows, track)
-		trRow.Remove()
+		if !trRow.Remove() {
+			log.Panicln("cannot remove track", ix)
+		}
 	}
 
-	list.Playlist.Remove(selectIx...)
+	list.Playlist.Remove(selectIxs...)
 	list.parent.UpdateTracks(list.Playlist)
 }
 
@@ -557,6 +562,7 @@ func selectedIxs(sel *gtk.TreeSelection) []int {
 
 	selectIxs := make([]int, len(selectedRows))
 	for i, selected := range selectedRows {
+		log.Println("seeing selected path", selected)
 		selectIxs[i] = selected.Indices()[0]
 	}
 
